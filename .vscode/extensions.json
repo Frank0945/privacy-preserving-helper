@@ -1,0 +1,16 @@
+{
+  "recommendations": [
+    "mhutchie.git-graph",
+    "eamodio.gitlens",
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "yoavbls.pretty-ts-errors",
+    "bradlc.vscode-tailwindcss",
+    "ms-vscode-remote.remote-wsl",
+    "ms-python.python",
+    "ms-python.black-formatter",
+    "teticio.python-envy",
+    "tamasfe.even-better-toml",
+    "ms-python.isort"
+  ]
+}

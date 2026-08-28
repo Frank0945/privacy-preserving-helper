@@ -1,0 +1,458 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "FastAPI",
+        "version": "0.1.0"
+    },
+    "paths": {
+        "/company/register": {
+            "post": {
+                "tags": [
+                    "company"
+                ],
+                "summary": "Register Company",
+                "operationId": "register_company",
+                "requestBody": {
+                    "content": {
+                        "application/x-www-form-urlencoded": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Body_register_company"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CompanyDTO"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/company/list": {
+            "get": {
+                "tags": [
+                    "company"
+                ],
+                "summary": "Get All Companies",
+                "operationId": "get_all_companies",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/CompanyDTO"
+                                    },
+                                    "type": "array",
+                                    "title": "Response Get All Companies"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/portfolio/{company_id}": {
+            "get": {
+                "tags": [
+                    "portfolio"
+                ],
+                "summary": "Get Portfolio",
+                "operationId": "get_portfolio",
+                "parameters": [
+                    {
+                        "name": "company_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Company Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PortfolioDTO"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/portfolio/history/{company_id}": {
+            "get": {
+                "tags": [
+                    "portfolio"
+                ],
+                "summary": "Get Portfolio History",
+                "operationId": "get_portfolio_history",
+                "parameters": [
+                    {
+                        "name": "company_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Company Id"
+                        }
+                    },
+                    {
+                        "name": "tokens[]",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "default": [],
+                            "title": "Tokens[]"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PortfolioHistoryDTO"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/wallet/import": {
+            "post": {
+                "tags": [
+                    "wallet"
+                ],
+                "summary": "Import Wallet",
+                "operationId": "import_wallet",
+                "requestBody": {
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Body_import_wallet"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "Body_import_wallet": {
+                "properties": {
+                    "excel_file": {
+                        "type": "string",
+                        "format": "binary",
+                        "title": "Excel File"
+                    },
+                    "company_id": {
+                        "type": "string",
+                        "title": "Company Id"
+                    },
+                    "tag": {
+                        "type": "string",
+                        "title": "Tag"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "excel_file",
+                    "company_id",
+                    "tag"
+                ],
+                "title": "Body_import_wallet"
+            },
+            "Body_register_company": {
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "title": "Name"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "name"
+                ],
+                "title": "Body_register_company"
+            },
+            "CompanyDTO": {
+                "properties": {
+                    "company_id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "title": "Company Id"
+                    },
+                    "name": {
+                        "type": "string",
+                        "title": "Name"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "company_id",
+                    "name"
+                ],
+                "title": "CompanyDTO"
+            },
+            "HTTPValidationError": {
+                "properties": {
+                    "detail": {
+                        "items": {
+                            "$ref": "#/components/schemas/ValidationError"
+                        },
+                        "type": "array",
+                        "title": "Detail"
+                    }
+                },
+                "type": "object",
+                "title": "HTTPValidationError"
+            },
+            "PortfolioDTO": {
+                "properties": {
+                    "wallets": {
+                        "items": {
+                            "$ref": "#/components/schemas/PortfolioWalletDTO"
+                        },
+                        "type": "array",
+                        "title": "Wallets"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "wallets"
+                ],
+                "title": "PortfolioDTO"
+            },
+            "PortfolioHistoryDTO": {
+                "properties": {
+                    "queryable_tokens": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "title": "Queryable Tokens"
+                    },
+                    "data": {
+                        "items": {
+                            "$ref": "#/components/schemas/TokenHistoryDTO"
+                        },
+                        "type": "array",
+                        "title": "Data"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "queryable_tokens",
+                    "data"
+                ],
+                "title": "PortfolioHistoryDTO"
+            },
+            "PortfolioWalletDTO": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "title": "Type"
+                    },
+                    "token": {
+                        "type": "string",
+                        "title": "Token"
+                    },
+                    "chain": {
+                        "type": "string",
+                        "title": "Chain"
+                    },
+                    "address": {
+                        "type": "string",
+                        "title": "Address"
+                    },
+                    "balance": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Balance"
+                    },
+                    "usd_value": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Usd Value"
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "title": "Created At"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "type",
+                    "token",
+                    "chain",
+                    "address",
+                    "balance",
+                    "usd_value",
+                    "created_at"
+                ],
+                "title": "PortfolioWalletDTO"
+            },
+            "TimeValueDTO": {
+                "properties": {
+                    "timestamp": {
+                        "type": "string",
+                        "format": "date-time",
+                        "title": "Timestamp"
+                    },
+                    "total_usd_value": {
+                        "type": "string",
+                        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                        "title": "Total Usd Value"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "timestamp",
+                    "total_usd_value"
+                ],
+                "title": "TimeValueDTO"
+            },
+            "TokenHistoryDTO": {
+                "properties": {
+                    "token": {
+                        "type": "string",
+                        "title": "Token"
+                    },
+                    "history": {
+                        "items": {
+                            "$ref": "#/components/schemas/TimeValueDTO"
+                        },
+                        "type": "array",
+                        "title": "History"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "token",
+                    "history"
+                ],
+                "title": "TokenHistoryDTO"
+            },
+            "ValidationError": {
+                "properties": {
+                    "loc": {
+                        "items": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "integer"
+                                }
+                            ]
+                        },
+                        "type": "array",
+                        "title": "Location"
+                    },
+                    "msg": {
+                        "type": "string",
+                        "title": "Message"
+                    },
+                    "type": {
+                        "type": "string",
+                        "title": "Error Type"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "loc",
+                    "msg",
+                    "type"
+                ],
+                "title": "ValidationError"
+            }
+        }
+    }
+}

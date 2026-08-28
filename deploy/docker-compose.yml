@@ -1,0 +1,50 @@
+services:
+
+  npm:
+    image: 'jc21/nginx-proxy-manager:latest'
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+      - '127.0.0.1:81:81'
+    environment:
+      DB_SQLITE_FILE: "/data/database.sqlite"
+    volumes:
+      - ./npm-data:/data
+      - ./npm-letsencrypt:/etc/letsencrypt
+    networks:
+      - privacy-preserving-helper-network
+    depends_on:
+      - web
+      - app-service
+      
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+    expose:
+      - "80"
+    networks:
+      - privacy-preserving-helper-network
+    depends_on:
+      - app-service
+    restart: unless-stopped
+
+  app-service:
+    build:
+      context: ..
+      dockerfile: apps/app-service/Dockerfile
+    env_file:
+      - .env
+    expose:
+      - "8000"
+    networks:
+      - privacy-preserving-helper-network
+    restart: unless-stopped
+
+volumes:
+  npm-data: {}
+  npm-letsencrypt: {}
+
+networks:
+  privacy-preserving-helper-network: {}

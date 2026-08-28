@@ -1,0 +1,13 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    networks:
+      - privacy-preserving-helper-network
+    volumes:
+      - ../..:/workspaces:cached
+    command: sleep infinity
+
+networks:
+  privacy-preserving-helper-network: {}

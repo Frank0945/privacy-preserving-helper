@@ -1,0 +1,40 @@
+{
+  "name": "Privacy Preserving Helper",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  // Features to add to the dev container. More info: https://containers.dev/features.
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {},
+    "ghcr.io/devcontainers/features/node:1": {},
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  // Configure tool-specific properties.
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "mhutchie.git-graph",
+        "eamodio.gitlens",
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint",
+        "bradlc.vscode-tailwindcss",
+        "yoavbls.pretty-ts-errors",
+        "ms-python.python",
+        "ms-python.black-formatter",
+        "teticio.python-envy",
+        "tamasfe.even-better-toml",
+        "ms-python.isort"
+      ],
+      "settings": {
+        "remote.portsAttributes": {
+          ".*vscode-server.*": {
+            "onAutoForward": "ignore"
+          }
+        }
+      }
+    }
+  },
+  // Use 'forwardPorts' to make a list of ports inside the container available locally.
+  "forwardPorts": [],
+  "postCreateCommand": "corepack enable"
+}

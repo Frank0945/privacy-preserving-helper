@@ -1,0 +1,1 @@
+{"properties":{"excel_file":{"type":"string","format":"binary","title":"Excel File"},"company_id":{"type":"string","title":"Company Id"},"tag":{"type":"string","title":"Tag"}},"type":"object","required":["excel_file","company_id","tag"],"title":"Body_import_wallet","x-readme-ref-name":"Body_import_wallet"}

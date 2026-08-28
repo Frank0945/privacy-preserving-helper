@@ -1,0 +1,13 @@
+{
+  "name": "privacy-preserving-helper-monorepo",
+  "private": true,
+  "packageManager": "pnpm@10.18.3",
+  "scripts": {
+    "prod:up": "docker compose -f deploy/docker-compose.yml --profile job build && docker compose -f deploy/docker-compose.yml up -d --build",
+    "prod:down": "docker compose -f deploy/docker-compose.yml down",
+    "prod:logs": "docker compose -f deploy/docker-compose.yml logs -f",
+    "prod:restart": "pnpm prod:down && pnpm prod:up",
+    "git:clean": "echo 'Cleaning up deleted remote branches...' && git fetch -p && git branch -vv | grep ': gone]' | awk '{print $1}' | xargs -r git branch -D && echo 'Cleanup done.'",
+    "git:prod-update": "git fetch origin && git checkout production && git reset --hard origin/master && git push origin production --force-with-lease && git checkout master && echo '🚀 Production aligned with master!'"
+  }
+}

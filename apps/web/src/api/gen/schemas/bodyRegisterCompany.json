@@ -1,0 +1,1 @@
+{"properties":{"name":{"type":"string","title":"Name"}},"type":"object","required":["name"],"title":"Body_register_company","x-readme-ref-name":"Body_register_company"}
