@@ -1,9 +1,11 @@
 import { Layout } from "@/layouts";
 
+import DataForm from "./DataForm";
+
 const IndexPage = () => {
   return (
     <Layout>
-      <div></div>
+      <DataForm />
     </Layout>
   );
 };
