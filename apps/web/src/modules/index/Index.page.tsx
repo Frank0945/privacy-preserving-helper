@@ -1,11 +1,13 @@
 import { Layout } from "@/layouts";
 
-import DataForm from "./DataForm";
+import BeforeAfter from "./beforeAfter/BeforeAfter";
+import DataForm from "./dataForm/DataForm";
 
 const IndexPage = () => {
   return (
     <Layout>
       <DataForm />
+      <BeforeAfter />
     </Layout>
   );
 };
