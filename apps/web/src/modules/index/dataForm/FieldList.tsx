@@ -52,7 +52,7 @@ const FieldList = ({ items, onItemsChange }: FieldListProps) => {
         <SortableItem
           key={item.id}
           value={item.id}
-          className="bg-card flex items-center gap-2 rounded-md border p-3"
+          className="bg-card flex cursor-default items-center gap-2 rounded-md border p-3"
         >
           <SortableItemHandle className="text-muted-foreground hover:text-foreground">
             <GripVerticalIcon className="h-4 w-4" />

@@ -79,7 +79,7 @@ const DataForm = () => {
           </Field>
 
           <Field orientation="horizontal" className="w-fit gap-2 text-nowrap">
-            <FieldLabel>筆數：</FieldLabel>
+            <FieldLabel>示範資料筆數：</FieldLabel>
 
             <Select value={fakeDataAmount} onValueChange={setFakeDataAmount}>
               <SelectTrigger className="w-16">
