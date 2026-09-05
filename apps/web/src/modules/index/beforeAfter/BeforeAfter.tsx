@@ -4,7 +4,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/atoms/card";
-import { ArrowRightCircle } from "lucide-react";
+import {
+  Item,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemMedia,
+  ItemTitle,
+} from "@/components/atoms/item";
+import { ChartNoAxesGanttIcon, StarsIcon } from "lucide-react";
 
 import DataTable from "./DataTable";
 
@@ -12,23 +20,41 @@ const BeforeAfter = () => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>處理前後對照 - 示範資料</CardTitle>
+        <CardTitle>隱私保護對照 - 示範資料</CardTitle>
       </CardHeader>
 
-      <CardContent className="flex-row items-center gap-x-2">
-        <div className="w-full">
-          <div className="text-muted-foreground mb-2 ml-2 flex items-center gap-1">
-            處理前
-          </div>
-          <DataTable />
-        </div>
+      <CardContent>
+        <ItemGroup className="grid grid-cols-2">
+          <Item className="min-w-0 gap-2" variant="outline">
+            <ItemMedia variant="icon">
+              <ChartNoAxesGanttIcon className="text-muted-foreground" />
+            </ItemMedia>
 
-        <ArrowRightCircle className="text-muted-foreground w-16" />
+            <ItemContent className="min-w-0">
+              <ItemTitle className="text-muted-foreground mb-2 whitespace-nowrap">
+                Before
+              </ItemTitle>
 
-        <div className="w-full">
-          <div className="mb-2 ml-2 flex items-center gap-1">處理後</div>
-          <DataTable />
-        </div>
+              <ItemDescription className="text-foreground min-w-0 overflow-x-auto">
+                <DataTable />
+              </ItemDescription>
+            </ItemContent>
+          </Item>
+
+          <Item className="min-w-0 gap-2" variant="outline">
+            <ItemMedia variant="icon">
+              <StarsIcon className="text-yellow-500" />
+            </ItemMedia>
+
+            <ItemContent className="min-w-0">
+              <ItemTitle className="mb-2 whitespace-nowrap">After</ItemTitle>
+
+              <ItemDescription className="text-foreground min-w-0 overflow-x-auto">
+                <DataTable />
+              </ItemDescription>
+            </ItemContent>
+          </Item>
+        </ItemGroup>
       </CardContent>
     </Card>
   );

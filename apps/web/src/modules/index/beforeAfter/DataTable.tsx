@@ -9,7 +9,7 @@ import {
 
 const DataTable = () => {
   return (
-    <div className="overflow-hidden rounded-lg border">
+    <div className="w-full overflow-hidden">
       <Table>
         <TableHeader className="bg-muted">
           <TableRow>
