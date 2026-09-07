@@ -1,10 +1,9 @@
 import type { ComponentType, FC } from "react";
 import { Suspense } from "react";
+import { Spinner } from "@/components/atoms/spinner";
 import { QueryErrorResetBoundary } from "@tanstack/react-query";
 import { OctagonXIcon } from "lucide-react";
 import { ErrorBoundary } from "react-error-boundary";
-
-import { Spinner } from "../atoms/spinner";
 
 /**
  * Wraps a component with `ErrorBoundary` and `Suspense` to handle query errors and loading status.

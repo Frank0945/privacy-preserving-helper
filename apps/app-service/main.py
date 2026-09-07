@@ -6,11 +6,15 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
+from routers.analyze import router as analyze_router
 from routers.company import router as company_router
+from routers.recalculate import router as recalculate_router
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    if not settings.GEMINI_API_KEY:
+        raise RuntimeError("GEMINI_API_KEY 未設定，請檢查 .env 檔案")
     yield
 
 
@@ -22,17 +26,23 @@ app = FastAPI(
     lifespan=lifespan,
     generate_unique_id_function=custom_generate_unique_id,
 )
-
+origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://172.27.190.187:5173",  # 新增當前 WSL IP
+]
 if settings.BACKEND_CORS_ORIGINS:
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[str(origin) for origin in settings.BACKEND_CORS_ORIGINS],
+        allow_origins=origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
 
 app.include_router(company_router)
+app.include_router(analyze_router)
+app.include_router(recalculate_router)
 
 
 @app.exception_handler(ValueError)
@@ -55,6 +65,11 @@ async def global_exception_handler(_: Request, exc: Exception):
             "message": f"An unexpected error occurred: {str(exc)}",
         },
     )
+
+
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}
 
 
 if __name__ == "__main__":

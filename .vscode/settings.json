@@ -26,6 +26,7 @@
   "python.languageServer": "Pylance",
   "python.analysis.autoImportCompletions": true,
   "python.analysis.typeCheckingMode": "standard",
+  "python.analysis.extraPaths": ["./apps/app-service"],
   "files.exclude": {
     "**/__pycache__": true
   },

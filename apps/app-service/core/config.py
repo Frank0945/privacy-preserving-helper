@@ -9,7 +9,7 @@ ENV_PATH = APP_DIR / ".env"
 
 
 class Settings(BaseSettings):
-
+    GEMINI_API_KEY: str = ""
     BACKEND_CORS_ORIGINS: list[str] = Field(default=...)
 
     model_config = SettingsConfigDict(
