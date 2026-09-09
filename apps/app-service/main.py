@@ -7,7 +7,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from routers.analyze import router as analyze_router
-from routers.company import router as company_router
 from routers.recalculate import router as recalculate_router
 
 
@@ -40,7 +39,6 @@ if settings.BACKEND_CORS_ORIGINS:
         allow_headers=["*"],
     )
 
-app.include_router(company_router)
 app.include_router(analyze_router)
 app.include_router(recalculate_router)
 
