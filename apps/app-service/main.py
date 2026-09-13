@@ -1,74 +1,35 @@
-from contextlib import asynccontextmanager
+"""
+隱私保護建議平台 - FastAPI 後端進入點。
 
-import uvicorn
-from core.config import settings
-from fastapi import FastAPI, Request
+啟動方式：
+    uv run uvicorn main:app --reload --port 8000
+
+啟動後可至 http://localhost:8000/docs 查看完整、可互動的 API 參數文件。
+"""
+
+from core.config import get_settings
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from fastapi.routing import APIRoute
 from routers.analyze import router as analyze_router
-from routers.recalculate import router as recalculate_router
 
-
-@asynccontextmanager
-async def lifespan(_: FastAPI):
-    if not settings.GEMINI_API_KEY:
-        raise RuntimeError("GEMINI_API_KEY 未設定，請檢查 .env 檔案")
-    yield
-
-
-def custom_generate_unique_id(route: APIRoute) -> str:
-    return route.name
-
+settings = get_settings()
 
 app = FastAPI(
-    lifespan=lifespan,
-    generate_unique_id_function=custom_generate_unique_id,
+    title="隱私保護建議平台 API",
+    description=(
+        "提供：合成假資料生成、隱私保護技術判斷（mask/generalize/suppress/"
+        "differential_privacy）、Excel 公式建議。所有請求/回應參數皆有中文說明，"
+        "詳見各 Endpoint 的 Schema。"
+    ),
+    version="0.1.0",
 )
-origins = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://172.27.190.187:5173",  # 新增當前 WSL IP
-]
-if settings.BACKEND_CORS_ORIGINS:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origin_list,
+    allow_credentials=True,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
+)
 
 app.include_router(analyze_router)
-app.include_router(recalculate_router)
-
-
-@app.exception_handler(ValueError)
-async def domain_exception_handler(_: Request, exc: ValueError):
-    return JSONResponse(
-        status_code=400,
-        content={
-            "status": "error",
-            "message": str(exc),
-        },
-    )
-
-
-@app.exception_handler(Exception)
-async def global_exception_handler(_: Request, exc: Exception):
-    return JSONResponse(
-        status_code=500,
-        content={
-            "status": "error",
-            "message": f"An unexpected error occurred: {str(exc)}",
-        },
-    )
-
-
-@app.get("/health")
-async def health_check():
-    return {"status": "ok"}
-
-
-if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8000)
