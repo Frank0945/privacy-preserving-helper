@@ -24,10 +24,11 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any, Optional
 
 from core.config import get_settings
-from core.formula_guard import column_letter, validate_slider, validate_template
+from core.formula_guard import validate_slider, validate_template
 from core.llm_client import LLMOutputError, generate_json
 from core.privacy_engine import (
     ResolvedType,
@@ -52,9 +53,11 @@ from core.schemas import (
 logger = logging.getLogger(__name__)
 
 _VALID_TECHNIQUES = {"mask", "generalize", "suppress", "differential_privacy"}
-PREVIEW_CELL = "A2"
-# 傳給 Task C 的範例筆數：夠它驗算長短邊界就好，不必整份送過去（省 token）
-SAMPLES_FOR_TASK_C = 3
+# 傳給 Task C 的範例筆數。
+# 曾經設成 3 來省 token，結果 LLM 寫值對照公式時只涵蓋看得到的那 3 筆
+# （10 個縣市只對照到 3 個，其餘全部落到「其他地區」）。
+# 範例最多 20 筆，整份送過去的成本可以接受。
+SAMPLES_FOR_TASK_C = 20
 # mask 必須提供這三個位置的公式，使用者介面才能讓使用者自行切換遮蔽位置。
 # LLM 少給任何一個，就當成未通過檢查（會回饋原因讓它補上）。
 REQUIRED_MASK_VARIANTS = ("left", "middle", "right")
@@ -84,8 +87,6 @@ class _FieldRecord:
         self.sample_before: list[str] = []
         # Task B
         self.technique: Technique = "suppress"
-        self.purpose_used: str = purpose
-        self.purpose_interpreted_as: Optional[str] = None
         self.reason: str = ""
         self.suggested_param: str = ""
         # Task C
@@ -167,8 +168,6 @@ async def _run_task_b(records: list[_FieldRecord]) -> None:
                 f"Task B 對欄位「{record.spec.name}」給了無效的技術：{technique!r}"
             )
         record.technique = technique  # type: ignore[assignment]
-        record.purpose_used = item.get("purpose_used") or record.purpose_used
-        record.purpose_interpreted_as = item.get("purpose_interpreted_as")
         record.suggested_param = item.get("suggested_param") or ""
         record.reason = item.get("reason") or ""
         # is_key_field 一律以使用者的勾選為準，不採用 LLM 的回填值
@@ -426,6 +425,24 @@ async def _run_task_c(records: list[_FieldRecord], max_repairs: int) -> None:
 # ---------------------------------------------------------------------------
 # 組裝
 # ---------------------------------------------------------------------------
+_QUOTED_LITERAL_RE = re.compile(r'"([^"]{2,})"')
+
+
+def _looks_like_value_mapping(record: _FieldRecord) -> bool:
+    """公式裡若出現多個「兩個字以上的字串常值」，表示它在做值對照而非截斷／計算。
+
+    例如 IF({cell}="餐飲業","服務業",…)。這種公式只涵蓋 LLM 看得到的範例值，
+    真實資料的其他值會落到預設類別，必須提醒使用者。
+    """
+    if record.technique != "generalize":
+        return False
+    for formula in record.formulas:
+        literals = _QUOTED_LITERAL_RE.findall(formula.formula_template)
+        if len(literals) >= 2:
+            return True
+    return False
+
+
 def _extra_warnings(record: _FieldRecord) -> list[str]:
     warnings: list[str] = []
     if record.technique == "suppress":
@@ -437,6 +454,12 @@ def _extra_warnings(record: _FieldRecord) -> list[str]:
         )
         warnings.append(
             "多個欄位同時採用差分隱私時，總隱私預算會累加，本平台未計算這件事。"
+        )
+    if _looks_like_value_mapping(record):
+        warnings.append(
+            "這條公式是用「值對照」的方式分類（把特定文字換成另一種說法），"
+            "而它只看得到平台生成的範例資料。真實資料若出現範例以外的值，"
+            "會被歸到公式裡的預設類別，套用前請先確認對照表涵蓋你所有的資料。"
         )
     if len(record.formulas) > 1:
         warnings.append(
@@ -481,23 +504,14 @@ async def analyze(
     processed: list[ProcessedField] = []
     for r in records:
         param = r.slider or SliderParam(control_type="none", value_when_none="none")
-        target_column = (r.spec.excel_column or column_letter(r.index)).upper()
         processed.append(
             ProcessedField(
                 field_id=r.field_id,
                 field_name=r.spec.name,
-                data_type=r.spec.data_type,
-                resolved_data_type=r.resolved_type,
                 technique=r.technique,
-                is_key_field=r.spec.is_key_field,
-                purpose_used=r.purpose_used,
-                purpose_interpreted_as=r.purpose_interpreted_as,
-                suggested_param=r.suggested_param,
                 reason=r.reason,
                 param=param,
                 sample_before=r.sample_before,
-                preview_cell=PREVIEW_CELL,
-                target_cell=f"{target_column}2",
                 excel_formulas=r.formulas,
                 default_variant=r.default_variant,
                 formula_error=r.formula_error,

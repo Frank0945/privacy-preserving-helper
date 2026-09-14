@@ -16,7 +16,6 @@ from typing import List, Literal, Optional, Union
 from pydantic import BaseModel, Field, model_validator
 
 Technique = Literal["mask", "generalize", "suppress", "differential_privacy"]
-MaskPosition = Literal["left", "middle", "right"]
 
 
 class Purpose(str, Enum):
@@ -60,12 +59,6 @@ class FieldSpecInput(BaseModel):
         examples=["09XX-XXX-XXX"],
     )
     is_key_field: bool = Field(default=False, description="是否為關鍵分析欄位")
-    excel_column: Optional[str] = Field(
-        default=None,
-        pattern=r"^[A-Za-z]{1,3}$",
-        description="此欄位在使用者真實 Excel 中的欄位字母（選填）。未填時依欄位順序推定為 A、B、C…",
-        examples=["B"],
-    )
 
 
 class AnalyzeRequest(BaseModel):
@@ -142,8 +135,9 @@ class ExcelFormulaTemplate(BaseModel):
     )
     cell_placeholder: str = Field(
         "{cell}",
-        description="原始資料儲存格的佔位符。畫面預覽請代入 preview_cell；"
-        "提供給使用者複製時請代入 target_cell",
+        description="原始資料儲存格的佔位符，**要代入哪一格由前端決定**。"
+        "畫面預覽時代入前端暫存試算表中放 sample_before[r] 的那一格；"
+        "提供給使用者複製時代入該欄位在他自己 Excel 中的儲存格",
     )
     param_placeholder: str = Field("{param}", description="滑桿值的佔位符")
     description: str = Field("", description="使用說明")
@@ -151,40 +145,20 @@ class ExcelFormulaTemplate(BaseModel):
 
 class ProcessedField(BaseModel):
     field_id: str = Field(..., description="與請求中的 fields[].id 完全相同")
-    field_name: str = Field(..., description="欄位名稱（原樣回傳）")
-    data_type: str = Field(..., description="欄位型態（原樣回傳）")
-    resolved_data_type: Literal["text", "integer", "decimal", "date"] = Field(
-        ...,
-        description="後端由 data_type 與欄位名稱判斷出的實際型態，決定套用哪一種公式",
-    )
+    field_name: str = Field(..., description="欄位名稱（原樣回傳，方便直接顯示）")
     technique: Technique = Field(..., description="LLM 判斷的隱私保護技術")
-    is_key_field: bool = Field(
-        ..., description="是否為關鍵分析欄位（以使用者輸入為準）"
+    reason: str = Field(
+        "",
+        description="給非技術背景使用者看的白話說明。"
+        "若請求的 purpose 為「其他」，LLM 會在這段文字裡註明它把 purpose_detail "
+        "判讀成哪一種情境，並提醒使用者確認",
     )
-    purpose_used: str = Field(..., description="LLM 判斷時依據的使用目的")
-    purpose_interpreted_as: Optional[str] = Field(
-        default=None, description="purpose 為「其他」時 LLM 的判讀結果，否則為 null"
-    )
-    suggested_param: str = Field("", description="LLM 的建議參數原文，例如「中間4碼」")
-    reason: str = Field("", description="給非技術背景使用者看的白話說明")
     param: SliderParam = Field(
         ...,
         description="滑桿設定。min/max/step/default 由 LLM 依範例資料決定，後端只做合理性檢查",
     )
     sample_before: List[str] = Field(
         ..., description="處理前的合成假資料（非真人資料）"
-    )
-    preview_cell: str = Field(
-        ...,
-        description="畫面預覽時要代入 cell_placeholder 的儲存格。"
-        "前端把 sample_before[r] 放進這個位址再執行公式即可得到處理後的值",
-        examples=["A2"],
-    )
-    target_cell: str = Field(
-        ...,
-        description="提供給使用者複製時要代入 cell_placeholder 的儲存格，"
-        "依請求的 excel_column（或欄位順序）推定",
-        examples=["B2"],
     )
     excel_formulas: List[ExcelFormulaTemplate] = Field(
         ...,
@@ -257,11 +231,11 @@ class ErrorDetail(BaseModel):
         ...,
         description=(
             "機器可讀的原因代碼。\n"
-            "`llm_refused`：LLM判定輸入與本功能無關（400）\n"
-            "`llm_invalid_output`：LLM回傳內容不符預期（502）\n"
-            "`quota_exceeded`：Gemini端回報配額已用盡（502）\n"
-            "`llm_timeout`：LLM重試後仍逾時（502）\n"
-            "`llm_unavailable`：Gemini其他錯誤，例如金鑰無效（502）"
+            "`llm_refused`：LLM 判定輸入與本功能無關（400）\n"
+            "`llm_invalid_output`：LLM 回傳內容不符預期（502）\n"
+            "`quota_exceeded`：Google 端回報配額已用盡（502）\n"
+            "`llm_timeout`：LLM 重試後仍逾時（502）\n"
+            "`llm_unavailable`：Gemini 其他錯誤，例如金鑰無效（502）"
         ),
     )
 

@@ -47,16 +47,6 @@ _DESCRIPTION = """
 `fields[].id` 由前端產生，後端與三個 LLM 任務全程使用同一組 id。
 回應中的 `field_id` 與請求完全相同，可直接對回前端表單的那一列。
 
-**前端要做的事**
-
-- 處理後對照表：把 `formula_template` 的 `{cell}` 換成 `preview_cell`、`{param}` 換成滑桿值，
-  把 `sample_before[r]` 放進 `preview_cell` 後執行公式
-- `param.control_type` 為 `none`（抑制）時不顯示滑桿，`excel_formulas` 也會是空陣列
-- 一個欄位可能有多條公式（例如遮罩的三種位置、日期的兩種儲存格格式）。
-  **variant 的名稱與數量由 LLM 決定，不要寫死**，請用回傳清單的 `label` 渲染選單，
-  初始選 `default_variant`
-- `formula_error` 不是 null 時，`excel_formulas` 會是空陣列，
-  請顯示「公式產生失敗，請重新分析」
 """
 
 

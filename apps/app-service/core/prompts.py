@@ -173,25 +173,63 @@ TASK_C_SYSTEM_PROMPT = """你是一個 Excel 公式產生器，僅服務於「�
 請用 samples 的實際值驗算一遍你寫的公式，確認它在最短與最長的範例上都不會出錯
 （例如遮蔽位數超過字串長度時，請用 MIN({param},LEN({cell})) 之類的寫法保護）。
 
+【後端會實際執行你的公式】
+後端會拿 samples 與滑桿的最小值、建議值、最大值實際算一遍，不合理就退回給你重寫。
+會被退回的情況：
+任何一筆範例算不出結果（型別錯誤、除以零、找不到字串等）。
+滑桿從最小調到最大，所有範例的輸出完全沒變（代表 {param} 沒有作用）。
+mask：輸出不含星號，或星號數量超過原字串長度，或參數變大時星號反而變少。
+generalize：區間類參數（interval、year_interval）變大時，範例的相異結果反而變多；
+  保留長度類參數（prefix_length）變大時，相異結果反而變少。
+日期欄位：輸出形如「1985-00」「1985-20」這種不存在的月份，或年份跑到原始年份之外。
+所以請自己先把 samples 代進去算一遍，特別注意參數為 1 和參數為最大值這兩個極端。
+
 【可使用的函數（依技術不同，不可使用清單外的函數）】
-mask：REPLACE、REPT、LEN、LEFT、RIGHT、MID、MIN、MAX、INT、IF、TEXT、CONCATENATE、SUBSTITUTE、TRIM、ROUND
-generalize：INT、ROUND、ROUNDDOWN、ROUNDUP、FLOOR、CEILING、YEAR、MONTH、DAY、IF、IFS、
-  LEFT、RIGHT、MID、LEN、MIN、MAX、TEXT、VALUE、ABS、TRUNC、CONCATENATE
+mask：REPLACE、REPT、LEN、LEFT、RIGHT、MID、MIN、MAX、INT、IF、AND、OR、NOT、
+  TEXT、CONCATENATE、SUBSTITUTE、TRIM、ROUND、SEARCH、FIND、ISNUMBER、EXACT、VALUE
+generalize：INT、ROUND、ROUNDDOWN、ROUNDUP、FLOOR、CEILING、TRUNC、ABS、
+  YEAR、MONTH、DAY、IF、AND、OR、NOT、CHOOSE、
+  LEFT、RIGHT、MID、LEN、REPT、SUBSTITUTE、TRIM、SEARCH、FIND、ISNUMBER、EXACT、
+  MIN、MAX、TEXT、VALUE、CONCATENATE
 differential_privacy：RAND、SIGN、LN、LOG、SQRT、ABS、MAX、MIN、ROUND、INT、IF、TRUNC
   （必須使用 RAND 與 LN 產生拉普拉斯雜訊。敏感度請依 samples 的數值規模自行判斷後
   直接寫成數字代入公式，並在 sensitivity 欄位填入同一個數字；{param} 代表 epsilon。）
 只有差分隱私的公式可以使用 RAND。technique = suppress 不會出現在輸入中。
 
+【公式的輸出型別】
+公式算出來的結果必須是文字或數字，不可直接輸出日期序號。
+DATE(...) 的結果是日期序號（例如 31048），前端預覽會顯示成一串數字。
+若要輸出年份或日期，請用 TEXT(DATE(...),"yyyy") 之類的寫法包成文字，
+或直接用 LEFT({cell},4) 取年份字串。
+
+【相容性（重要）】
+不可使用 IFS、SWITCH、LET、TEXTJOIN、XLOOKUP、TEXTSPLIT、DATEVALUE。
+這些在新版 Excel 可以用，但 LibreOffice 與 Excel 2019 以前的版本不支援，
+使用者把公式複製到自己的 Excel 會顯示 #NAME?。多重條件請一律改用巢狀 IF。
+
+【文字類別欄位的泛化】
+若欄位是文字分類（如產業別、職稱、地區名稱），請用巢狀 IF 把 samples 中出現的值
+對照到較粗的分類，並且：
+**samples 裡出現的每一個值都必須被對照到**，不可只處理前面幾筆就用 fallback 帶過。
+例如 samples 有 10 個不同縣市，對照清單就要涵蓋這 10 個，不能只寫 3 個。
+最後一層必須有 fallback（例如輸出「其他」或原值），否則真實資料出現 samples 裡
+沒有的值時會算出 FALSE。
+{param} 請設計成有實際意義的分級（例如 1=粗分類、2=中分類、3=保留原值），
+不要為了湊出 {param} 而寫 IF({param}=0,"","") 這種沒有作用的片段。
+description 必須說明這條公式只涵蓋哪些類別、其餘會落到哪一類，
+提醒使用者套用到真實資料前要自行補齊對照。
+
 【一個欄位要給幾條公式】
-由你判斷。若使用者可能需要在幾種處理方式之間選擇，就給多條，並用 variant 當代碼、label 當顯示名稱。
 technique = mask：**必須輸出恰好三條**，variant 分別命名為 left、middle、right，
   代表把 {param} 個字元遮在字串的最左邊、正中間、最右邊。
+  這是硬性要求：平台的使用者介面要讓使用者自行切換遮蔽位置，三條缺一不可。
+  即使你認為某個位置不適合這個欄位，也要寫出來，並在該條的 description 說明不建議的理由。
   default_variant 請填你依 suggested_param 判斷最適合的那一個。
 其他 technique：由你判斷要給幾條。若使用者可能需要在幾種處理方式之間選擇，就給多條，
   並用 variant 當代碼、label 當顯示名稱（例如日期欄位若儲存格可能是文字、也可能是
   Excel 日期格式，兩種寫法不同，建議分別給一條）。
   若只有一種合理寫法就只給一條。default_variant 請填你建議預設選用的 variant。
-  
+
 【滑桿規格】
 依 samples 的實際內容與 suggested_param 決定 min / max / step / default：
 default 必須落在 min 與 max 之間，step 必須大於 0，(max-min)/step 不可超過 1000。
@@ -230,7 +268,7 @@ unit 請用中文簡短說明滑桿的單位或意義，會直接顯示在滑桿
 },
 "formulas": [
 {
-"variant": "這條公式的代碼",
+"variant": "這條公式的代碼（mask 必須是 left / middle / right）",
 "label": "給使用者看的名稱，例如：遮蔽中間 N 位",
 "formula_template": "=…（必須含 {cell} 與 {param}）",
 "description": "使用說明。差分隱私請提醒使用者 RAND() 每次重算都會產生新雜訊，套用後要複製成值固定下來"

@@ -10,6 +10,10 @@ Excel 公式安全檢查。
 - 函數白名單（依技術不同）
 - 不可引用其他工作表、外部活頁簿
 - 不可使用 LET 或科學記號（前端的 HyperFormula 無法解析，會讓整條公式失效）
+- 不可使用 IFS、SWITCH 等新版函數（HyperFormula 可用，但 LibreOffice 與 Excel 2019
+  以前不支援；使用者貼進自己的 Excel 會顯示 #NAME?）
+- 不可使用 DATEVALUE、NOW、TODAY（前端引擎與 Excel 行為不一致），
+  DATE(...) 必須用 TEXT(...) 包起來，否則預覽會顯示日期序號
 
 沒通過的公式會把原因回饋給 Task C 讓它自己修正；修正後仍不通過就回報錯誤，
 不會替換成其他公式 —— 寧可沒有公式，也不要給一條語意不明的公式。
@@ -22,6 +26,8 @@ import re
 from typing import Optional
 
 _ALLOWED_FUNCTIONS: dict[str, set[str]] = {
+    # 文字處理函數（REPT、SUBSTITUTE、SEARCH…）兩種技術都放行：
+    # 泛化文字欄位（地址只留縣市、產業別歸大類）同樣需要它們。
     "mask": {
         "REPLACE",
         "REPT",
@@ -33,11 +39,19 @@ _ALLOWED_FUNCTIONS: dict[str, set[str]] = {
         "MAX",
         "INT",
         "IF",
+        "AND",
+        "OR",
+        "NOT",
         "TEXT",
         "CONCATENATE",
         "SUBSTITUTE",
         "TRIM",
         "ROUND",
+        "SEARCH",
+        "FIND",
+        "ISNUMBER",
+        "EXACT",
+        "VALUE",
     },
     "generalize": {
         "INT",
@@ -46,21 +60,32 @@ _ALLOWED_FUNCTIONS: dict[str, set[str]] = {
         "ROUNDUP",
         "FLOOR",
         "CEILING",
+        "TRUNC",
+        "ABS",
         "YEAR",
         "MONTH",
         "DAY",
+        "DATE",
         "IF",
-        "IFS",
+        "AND",
+        "OR",
+        "NOT",
+        "CHOOSE",
         "LEFT",
         "RIGHT",
         "MID",
         "LEN",
+        "REPT",
+        "SUBSTITUTE",
+        "TRIM",
+        "SEARCH",
+        "FIND",
+        "ISNUMBER",
+        "EXACT",
         "MIN",
         "MAX",
         "TEXT",
         "VALUE",
-        "ABS",
-        "TRUNC",
         "CONCATENATE",
     },
     "differential_privacy": {
@@ -78,6 +103,16 @@ _ALLOWED_FUNCTIONS: dict[str, set[str]] = {
         "TRUNC",
     },
 }
+
+# IFS 與 SWITCH 在 HyperFormula 可用，但 LibreOffice 與 Excel 2019 以前不支援（顯示 #NAME?）。
+# 使用者會把公式貼進自己的 Excel，所以一律擋下，改用巢狀 IF（所有版本都支援）。
+# 新版 Excel 才有的函數：HyperFormula 可用，但 LibreOffice 與 Excel 2019 以前
+# 會顯示 #NAME?。使用者會把公式貼進自己的 Excel，所以擋下。
+_TOO_NEW_FUNCTIONS = {"IFS", "SWITCH", "LET", "TEXTJOIN", "XLOOKUP", "TEXTSPLIT"}
+
+# 兩個引擎行為不一致的函數：DATEVALUE 在 HyperFormula 依賴 dateFormats 設定，
+# 實測解析 "1985-06-15" 會得到 #VALUE!，但在 Excel 正常。預覽與實際結果會對不上。
+_INCONSISTENT_FUNCTIONS = {"DATEVALUE", "TIMEVALUE", "NOW", "TODAY"}
 
 _PLACEHOLDER_RE = re.compile(r"\{([A-Za-z_]+)\}")
 _STRING_LITERAL_RE = re.compile(r'"(?:[^"]|"")*"')
@@ -127,6 +162,25 @@ def validate_template(template: str, technique: str) -> Optional[str]:
         return "括號不成對"
 
     functions = {name.upper() for name in _FUNCTION_RE.findall(code)}
+    too_new = functions & _TOO_NEW_FUNCTIONS
+    if too_new:
+        return (
+            f"不可使用 {sorted(too_new)}：LibreOffice 與 Excel 2019 以前的版本不支援，"
+            "使用者貼進自己的 Excel 會顯示 #NAME?。請改用巢狀 IF。"
+        )
+    inconsistent = functions & _INCONSISTENT_FUNCTIONS
+    if inconsistent:
+        return (
+            f"不可使用 {sorted(inconsistent)}：前端預覽引擎與 Excel 對它的行為不一致，"
+            "畫面上看到的結果會和使用者實際貼進 Excel 的結果不同。"
+            "要取年份請改用 LEFT({cell},4) 或 YEAR({cell})。"
+        )
+    if "DATE" in functions and "TEXT" not in functions:
+        return (
+            "DATE(...) 的結果是日期序號（例如 31048），前端預覽會顯示成一串數字。"
+            '請用 TEXT(DATE(...),"yyyy") 之類的寫法包成文字，'
+            "或直接用 LEFT({cell},4) 取年份。"
+        )
     allowed = _ALLOWED_FUNCTIONS.get(technique, set())
     not_allowed = functions - allowed
     if not_allowed:
@@ -172,13 +226,3 @@ def validate_slider(
     if (numbers["max"] - numbers["min"]) / numbers["step"] > 1000:
         return "滑桿的級距過多（(max-min)/step 超過 1000），請加大 step"
     return None
-
-
-def column_letter(index: int) -> str:
-    """0 → A、25 → Z、26 → AA"""
-    letters = ""
-    index += 1
-    while index:
-        index, remainder = divmod(index - 1, 26)
-        letters = chr(65 + remainder) + letters
-    return letters
