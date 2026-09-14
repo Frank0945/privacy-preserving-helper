@@ -51,7 +51,7 @@ class LLMOutputError(Exception):
 class LLMUpstreamError(Exception):
     """Gemini 端回報錯誤（金鑰無效、配額用盡、服務暫時不可用等）。
 
-    status_code 為 Google 回的 HTTP 狀態碼（逾時時填 504 代表「本地判定逾時」）。
+    status_code 為 Gemini 回的 HTTP 狀態碼（逾時時填 504 代表「本地判定逾時」）。
     router 一律回 502，只用它決定 error_code 是 quota_exceeded / llm_timeout / llm_unavailable。
     """
 

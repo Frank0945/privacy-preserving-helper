@@ -257,11 +257,11 @@ class ErrorDetail(BaseModel):
         ...,
         description=(
             "機器可讀的原因代碼。\n"
-            "`llm_refused`：LLM 判定輸入與本功能無關（400）\n"
-            "`llm_invalid_output`：LLM 回傳內容不符預期（502）\n"
-            "`quota_exceeded`：Google 端回報配額已用盡（502）\n"
-            "`llm_timeout`：LLM 重試後仍逾時（502）\n"
-            "`llm_unavailable`：Gemini 其他錯誤，例如金鑰無效（502）"
+            "`llm_refused`：LLM判定輸入與本功能無關（400）\n"
+            "`llm_invalid_output`：LLM回傳內容不符預期（502）\n"
+            "`quota_exceeded`：Gemini端回報配額已用盡（502）\n"
+            "`llm_timeout`：LLM重試後仍逾時（502）\n"
+            "`llm_unavailable`：Gemini其他錯誤，例如金鑰無效（502）"
         ),
     )
 
