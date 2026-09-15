@@ -1,3 +1,4 @@
+import type { ProcessedField } from "@/api/gen";
 import {
   Card,
   CardContent,
@@ -7,16 +8,20 @@ import {
 import {
   Item,
   ItemContent,
-  ItemDescription,
   ItemGroup,
   ItemMedia,
   ItemTitle,
 } from "@/components/atoms/item";
+import { ScrollArea, ScrollBar } from "@/components/atoms/scroll-area";
 import { ChartNoAxesGanttIcon, StarsIcon } from "lucide-react";
 
 import DataTable from "./DataTable";
 
-const BeforeAfter = () => {
+interface ComparisonProps {
+  fields: ProcessedField[];
+}
+
+const Comparison = ({ fields }: ComparisonProps) => {
   return (
     <Card>
       <CardHeader>
@@ -25,7 +30,7 @@ const BeforeAfter = () => {
 
       <CardContent>
         <ItemGroup className="grid grid-cols-2">
-          <Item className="min-w-0 gap-2" variant="outline">
+          <Item className="items-start gap-2" variant="outline">
             <ItemMedia variant="icon">
               <ChartNoAxesGanttIcon className="text-muted-foreground" />
             </ItemMedia>
@@ -35,13 +40,14 @@ const BeforeAfter = () => {
                 Before
               </ItemTitle>
 
-              <ItemDescription className="text-foreground min-w-0 overflow-x-auto">
+              <ScrollArea className="w-full">
                 <DataTable />
-              </ItemDescription>
+                <ScrollBar orientation="horizontal" />
+              </ScrollArea>
             </ItemContent>
           </Item>
 
-          <Item className="min-w-0 gap-2" variant="outline">
+          <Item className="items-start gap-2" variant="outline">
             <ItemMedia variant="icon">
               <StarsIcon className="text-yellow-500" />
             </ItemMedia>
@@ -49,9 +55,10 @@ const BeforeAfter = () => {
             <ItemContent className="min-w-0">
               <ItemTitle className="mb-2 whitespace-nowrap">After</ItemTitle>
 
-              <ItemDescription className="text-foreground min-w-0 overflow-x-auto">
+              <ScrollArea className="w-full">
                 <DataTable />
-              </ItemDescription>
+                <ScrollBar orientation="horizontal" />
+              </ScrollArea>
             </ItemContent>
           </Item>
         </ItemGroup>
@@ -60,4 +67,4 @@ const BeforeAfter = () => {
   );
 };
 
-export default BeforeAfter;
+export default Comparison;

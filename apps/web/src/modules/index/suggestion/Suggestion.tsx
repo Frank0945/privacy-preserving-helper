@@ -7,7 +7,7 @@ import {
 
 import DataItem from "./DataItem";
 
-const ColumnDetails = () => {
+const Suggestion = () => {
   return (
     <Card>
       <CardHeader>
@@ -23,4 +23,4 @@ const ColumnDetails = () => {
   );
 };
 
-export default ColumnDetails;
+export default Suggestion;
