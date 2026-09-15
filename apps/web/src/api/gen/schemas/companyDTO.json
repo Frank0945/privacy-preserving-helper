@@ -1,1 +1,0 @@
-{"properties":{"company_id":{"type":"string","format":"uuid","title":"Company Id"},"name":{"type":"string","title":"Name"}},"type":"object","required":["company_id","name"],"title":"CompanyDTO","x-readme-ref-name":"CompanyDTO"}
