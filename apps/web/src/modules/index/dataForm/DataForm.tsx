@@ -1,4 +1,13 @@
-import { useState } from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
+import {
+  analyzeRequestSampleCountEnum,
+  purposeEnum,
+  useAnalyzeApiAnalyzePost,
+  type AnalyzeRequestSampleCountEnumKey,
+  type ProcessedField,
+  type Purpose,
+} from "@/api/gen";
+import { Alert, AlertDescription, AlertTitle } from "@/components/atoms/alert";
 import { Button } from "@/components/atoms/button";
 import {
   Card,
@@ -9,113 +18,128 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/atoms/card";
-import { Field, FieldLabel } from "@/components/atoms/field";
-import { Input } from "@/components/atoms/input";
+import { FieldSet } from "@/components/atoms/field";
+import { Spinner } from "@/components/atoms/spinner";
 import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/atoms/select";
-import { ArrowUpLeftIcon, PlusIcon } from "lucide-react";
+  AlertTriangleIcon,
+  ArrowUpLeftIcon,
+  CircleXIcon,
+  PlusIcon,
+} from "lucide-react";
 
+import DataActions from "./DataActions";
 import type { DataField } from "./dataForm";
-import { createDataField, fakeDataAmountList, purposeList } from "./dataForm";
+import { createDataField, parseAnalyzeError } from "./dataForm";
 import FieldList from "./FieldList";
 
-const DataForm = () => {
+export interface DataActionsValue {
+  purpose: Purpose;
+  otherPurpose: string;
+  dataAmount: AnalyzeRequestSampleCountEnumKey;
+}
+
+interface DataFormProps {
+  setFields: Dispatch<SetStateAction<ProcessedField[]>>;
+}
+
+const DataForm = ({ setFields }: DataFormProps) => {
   const [items, setItems] = useState<DataField[]>(() => [createDataField()]);
 
-  const [purposeOption, setPurposeOption] = useState(purposeList[0].value);
+  const [actions, setActions] = useState<DataActionsValue>({
+    purpose: purposeEnum.內部使用,
+    otherPurpose: "",
+    dataAmount: analyzeRequestSampleCountEnum[5],
+  });
 
-  const [customPurpose, setCustomPurpose] = useState("");
-
-  const [fakeDataAmount, setFakeDataAmount] = useState(
-    fakeDataAmountList[0].value,
-  );
+  const { mutate, data, isPending, isError, error } =
+    useAnalyzeApiAnalyzePost();
 
   const addItem = () => {
     setItems((prev) => [...prev, createDataField()]);
   };
 
+  const submitData = () => {
+    mutate(
+      {
+        data: {
+          purpose: actions.purpose,
+          purpose_detail:
+            actions.purpose === purposeEnum.其他 ? actions.otherPurpose : null,
+          sample_count: actions.dataAmount,
+          fields: items.map((item) => ({
+            id: item.id,
+            name: item.name,
+            data_type: item.type,
+            format_hint: item.rule,
+            is_important: item.isImportant,
+          })),
+        },
+      },
+      {
+        onSuccess: (data) => {
+          setFields(data.fields ?? []);
+        },
+      },
+    );
+  };
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>告訴我們您的資料長什麼樣子</CardTitle>
+    <FieldSet disabled={isPending} inert={isPending}>
+      <Card>
+        <CardHeader>
+          <CardTitle>告訴我們您的資料長什麼樣子</CardTitle>
 
-        <CardDescription>
-          設定欄位型別、格式，以及是否為分析必要欄位。
-        </CardDescription>
+          <CardDescription>
+            設定欄位型別、格式，以及是否為分析必要欄位。
+          </CardDescription>
 
-        <CardAction className="flex gap-5">
-          <Field orientation="horizontal" className="w-fit gap-2 text-nowrap">
-            <FieldLabel>使用目的：</FieldLabel>
+          <CardAction className="flex gap-5">
+            <DataActions value={actions} onChange={setActions} />
+          </CardAction>
+        </CardHeader>
 
-            <Select value={purposeOption} onValueChange={setPurposeOption}>
-              <SelectTrigger className="w-36">
-                <SelectValue />
-              </SelectTrigger>
+        <CardContent>
+          {isError && (
+            <Alert className="border-destructive" variant="destructive">
+              <CircleXIcon />
+              <AlertTitle>Something went wrong</AlertTitle>
+              <AlertDescription className="whitespace-pre-line">
+                {parseAnalyzeError(error)}
+              </AlertDescription>
+            </Alert>
+          )}
 
-              <SelectContent>
-                <SelectGroup>
-                  {purposeList.map((purpose) => (
-                    <SelectItem key={purpose.value} value={purpose.value}>
-                      {purpose.label}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+          {data?.status === "need_clarification" && (
+            <Alert className="border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-50">
+              <AlertTriangleIcon />
+              <AlertTitle>需要更多資訊</AlertTitle>
+            </Alert>
+          )}
 
-            {purposeOption === "其他" && (
-              <Input
-                value={customPurpose}
-                onChange={(e) => setCustomPurpose(e.target.value)}
-                placeholder="請輸入使用目的"
-              />
+          <FieldList
+            items={items}
+            onItemsChange={setItems}
+            clarifications={data?.clarifications_needed ?? []}
+          />
+        </CardContent>
+
+        <CardFooter className="flex justify-between">
+          <Button onClick={addItem} variant="outline">
+            <PlusIcon />
+            新增欄位
+          </Button>
+
+          <Button onClick={submitData}>
+            {isPending ? (
+              <Spinner data-icon="inline-start" />
+            ) : (
+              <ArrowUpLeftIcon />
             )}
-          </Field>
-
-          <Field orientation="horizontal" className="w-fit gap-2 text-nowrap">
-            <FieldLabel>示範資料筆數：</FieldLabel>
-
-            <Select value={fakeDataAmount} onValueChange={setFakeDataAmount}>
-              <SelectTrigger className="w-16">
-                <SelectValue />
-              </SelectTrigger>
-
-              <SelectContent>
-                <SelectGroup>
-                  {fakeDataAmountList.map((amount) => (
-                    <SelectItem key={amount.value} value={amount.value}>
-                      {amount.label}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </Field>
-        </CardAction>
-      </CardHeader>
-
-      <CardContent>
-        <FieldList items={items} onItemsChange={setItems} />
-      </CardContent>
-
-      <CardFooter className="flex justify-between">
-        <Button onClick={addItem} variant="outline">
-          <PlusIcon />
-          新增欄位
-        </Button>
-
-        <Button onClick={() => console.log(items)}>
-          <ArrowUpLeftIcon />
-          產生建議
-        </Button>
-      </CardFooter>
-    </Card>
+            產生建議
+          </Button>
+        </CardFooter>
+      </Card>
+    </FieldSet>
   );
 };
 

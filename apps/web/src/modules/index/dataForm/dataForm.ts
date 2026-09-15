@@ -1,17 +1,11 @@
+import type {
+  ClarificationNeeded,
+  ErrorDetail,
+  ValidationErrorResponse,
+} from "@/api/gen";
+import type { ResponseErrorConfig } from "@kubb/plugin-client/clients/axios";
+
 export type FieldType = "文字" | "數字" | "日期";
-
-export const purposeList = [
-  { label: "內部使用", value: "內部使用" },
-  { label: "跨部門使用", value: "跨部門使用" },
-  { label: "對外公開研究", value: "對外公開研究" },
-  { label: "其他", value: "其他" },
-];
-
-export const fakeDataAmountList = [
-  { label: "5", value: "5" },
-  { label: "10", value: "10" },
-  { label: "20", value: "20" },
-];
 
 export const typeList: {
   label: string;
@@ -37,3 +31,34 @@ export const createDataField = (): DataField => ({
   rule: "",
   isImportant: false,
 });
+
+export const parseAnalyzeError = (
+  error: ResponseErrorConfig<ErrorDetail | ValidationErrorResponse>,
+): string => {
+  const status = error.response?.status;
+  const data = error.response?.data;
+
+  if (status === 400 || status === 502) {
+    const body = data as ErrorDetail;
+
+    return `[${body.error_code}] ${body.detail}`;
+  }
+
+  if (status === 422) {
+    const body = data as ValidationErrorResponse;
+
+    return body.detail.map((item) => item.msg).join("\n");
+  }
+
+  return "發生未知錯誤，請稍後再試。";
+};
+
+export const findClarificationForField = (
+  fieldId: string,
+  clarifications: ClarificationNeeded[],
+): string | null => {
+  return (
+    clarifications.find((item) => item.field_id === fieldId)
+      ?.clarification_question ?? null
+  );
+};

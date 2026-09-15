@@ -1,3 +1,4 @@
+import type { ClarificationNeeded } from "@/api/gen";
 import { Button } from "@/components/atoms/button";
 import { Checkbox } from "@/components/atoms/checkbox";
 import { Field, FieldLabel } from "@/components/atoms/field";
@@ -15,17 +16,23 @@ import {
   SortableItem,
   SortableItemHandle,
 } from "@/components/atoms/sortable";
+import { cn } from "cn";
 import { GripVerticalIcon, XIcon } from "lucide-react";
 
 import type { DataField } from "./dataForm";
-import { typeList } from "./dataForm";
+import { findClarificationForField, typeList } from "./dataForm";
 
 interface FieldListProps {
   items: DataField[];
+  clarifications: ClarificationNeeded[];
   onItemsChange: (items: DataField[]) => void;
 }
 
-const FieldList = ({ items, onItemsChange }: FieldListProps) => {
+const FieldList = ({
+  items,
+  onItemsChange,
+  clarifications,
+}: FieldListProps) => {
   const removeItem = (id: string) => {
     onItemsChange(items.filter((item) => item.id !== id));
   };
@@ -48,75 +55,97 @@ const FieldList = ({ items, onItemsChange }: FieldListProps) => {
       strategy="vertical"
       className="space-y-3"
     >
-      {items.map((item) => (
-        <SortableItem
-          key={item.id}
-          value={item.id}
-          className="bg-card flex cursor-default items-center gap-2 rounded-md border p-3"
-        >
-          <SortableItemHandle className="text-muted-foreground hover:text-foreground">
-            <GripVerticalIcon className="h-4 w-4" />
-          </SortableItemHandle>
+      {items.map((item) => {
+        const clarification = findClarificationForField(
+          item.id,
+          clarifications,
+        );
 
-          <Input
-            className="max-w-80"
-            value={item.name}
-            placeholder="欄位名稱，如「年齡」"
-            onChange={(e) => updateItem(item.id, "name", e.target.value)}
-          />
-
-          <Select
-            value={item.type}
-            onValueChange={(value) =>
-              updateItem(item.id, "type", value as DataField["type"])
-            }
+        return (
+          <SortableItem
+            key={item.id}
+            value={item.id}
+            className={cn(
+              "bg-card flex cursor-default items-center gap-2 rounded-md border p-3",
+              clarification && "border-amber-400 dark:border-amber-700",
+            )}
           >
-            <SelectTrigger className="min-w-[120px]">
-              <SelectValue />
-            </SelectTrigger>
+            <SortableItemHandle className="text-muted-foreground hover:text-foreground">
+              <GripVerticalIcon className="h-4 w-4" />
+            </SortableItemHandle>
 
-            <SelectContent>
-              <SelectGroup>
-                {typeList.map((type) => (
-                  <SelectItem key={type.value} value={type.value}>
-                    {type.label}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
+            <div className="flex w-full flex-col gap-3.5">
+              <div className="flex w-full gap-2">
+                <Input
+                  className="max-w-80"
+                  value={item.name}
+                  placeholder="欄位名稱，如「年齡」"
+                  onChange={(e) => updateItem(item.id, "name", e.target.value)}
+                />
 
-          <Input
-            className="max-w-96"
-            value={item.rule}
-            placeholder="格式規則（選填）"
-            onChange={(e) => updateItem(item.id, "rule", e.target.value)}
-          />
+                <Select
+                  value={item.type}
+                  onValueChange={(value) =>
+                    updateItem(item.id, "type", value as DataField["type"])
+                  }
+                >
+                  <SelectTrigger className="min-w-[120px]">
+                    <SelectValue />
+                  </SelectTrigger>
 
-          <Field
-            orientation="horizontal"
-            className="mr-auto w-fit shrink-0 gap-2"
-          >
-            <Checkbox
-              id={`isImportant-${item.id}`}
-              checked={item.isImportant}
-              onCheckedChange={(checked) =>
-                updateItem(item.id, "isImportant", checked === true)
-              }
-            />
+                  <SelectContent>
+                    <SelectGroup>
+                      {typeList.map((type) => (
+                        <SelectItem key={type.value} value={type.value}>
+                          {type.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
 
-            <FieldLabel htmlFor={`isImportant-${item.id}`}>關鍵欄位</FieldLabel>
-          </Field>
+                <Input
+                  className="max-w-96"
+                  value={item.rule}
+                  placeholder="格式規則（選填）"
+                  onChange={(e) => updateItem(item.id, "rule", e.target.value)}
+                />
 
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => removeItem(item.id)}
-          >
-            <XIcon />
-          </Button>
-        </SortableItem>
-      ))}
+                <Field
+                  orientation="horizontal"
+                  className="mr-auto w-fit shrink-0 gap-2"
+                >
+                  <Checkbox
+                    id={`isImportant-${item.id}`}
+                    checked={item.isImportant}
+                    onCheckedChange={(checked) =>
+                      updateItem(item.id, "isImportant", checked === true)
+                    }
+                  />
+
+                  <FieldLabel htmlFor={`isImportant-${item.id}`}>
+                    關鍵欄位
+                  </FieldLabel>
+                </Field>
+
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => removeItem(item.id)}
+                >
+                  <XIcon />
+                </Button>
+              </div>
+
+              {clarification && (
+                <span className="px-2 text-sm text-amber-500 dark:text-amber-600">
+                  {clarification}
+                </span>
+              )}
+            </div>
+          </SortableItem>
+        );
+      })}
     </Sortable>
   );
 };
