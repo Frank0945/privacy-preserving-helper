@@ -27,6 +27,11 @@ export type ProcessedField = {
     */
     field_name: string;
     /**
+     * @description 是否為關鍵分析欄位（原樣回傳，方便直接顯示）
+     * @type boolean
+    */
+    is_key_field: boolean;
+    /**
      * @description LLM 判斷的隱私保護技術
      * @type string
     */

@@ -337,6 +337,11 @@
                         "title": "Field Name",
                         "description": "欄位名稱（原樣回傳，方便直接顯示）"
                     },
+                    "is_key_field": {
+                        "type": "boolean",
+                        "title": "Is Key Field",
+                        "description": "是否為關鍵分析欄位（原樣回傳，方便直接顯示）"
+                    },
                     "technique": {
                         "type": "string",
                         "enum": [
@@ -423,6 +428,7 @@
                 "required": [
                     "field_id",
                     "field_name",
+                    "is_key_field",
                     "technique",
                     "param",
                     "sample_before",
