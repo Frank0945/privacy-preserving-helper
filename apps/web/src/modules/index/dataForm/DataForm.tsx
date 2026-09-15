@@ -4,6 +4,7 @@ import {
   purposeEnum,
   useAnalyzeApiAnalyzePost,
   type AnalyzeRequestSampleCountEnumKey,
+  type FieldSpecInput,
   type ProcessedField,
   type Purpose,
 } from "@/api/gen";
@@ -28,7 +29,6 @@ import {
 } from "lucide-react";
 
 import DataActions from "./DataActions";
-import type { DataField } from "./dataForm";
 import { createDataField, parseAnalyzeError } from "./dataForm";
 import FieldList from "./FieldList";
 
@@ -43,7 +43,9 @@ interface DataFormProps {
 }
 
 const DataForm = ({ setFields }: DataFormProps) => {
-  const [items, setItems] = useState<DataField[]>(() => [createDataField()]);
+  const [items, setItems] = useState<FieldSpecInput[]>(() => [
+    createDataField(),
+  ]);
 
   const [actions, setActions] = useState<DataActionsValue>({
     purpose: purposeEnum.內部使用,
@@ -66,13 +68,7 @@ const DataForm = ({ setFields }: DataFormProps) => {
           purpose_detail:
             actions.purpose === purposeEnum.其他 ? actions.otherPurpose : null,
           sample_count: actions.dataAmount,
-          fields: items.map((item) => ({
-            id: item.id,
-            name: item.name,
-            data_type: item.type,
-            format_hint: item.rule,
-            is_important: item.isImportant,
-          })),
+          fields: items,
         },
       },
       {

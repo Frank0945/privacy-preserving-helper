@@ -1,4 +1,4 @@
-import type { ClarificationNeeded } from "@/api/gen";
+import type { ClarificationNeeded, FieldSpecInput } from "@/api/gen";
 import { Button } from "@/components/atoms/button";
 import { Checkbox } from "@/components/atoms/checkbox";
 import { Field, FieldLabel } from "@/components/atoms/field";
@@ -19,13 +19,12 @@ import {
 import { cn } from "cn";
 import { GripVerticalIcon, XIcon } from "lucide-react";
 
-import type { DataField } from "./dataForm";
 import { findClarificationForField, typeList } from "./dataForm";
 
 interface FieldListProps {
-  items: DataField[];
+  items: FieldSpecInput[];
   clarifications: ClarificationNeeded[];
-  onItemsChange: (items: DataField[]) => void;
+  onItemsChange: (items: FieldSpecInput[]) => void;
 }
 
 const FieldList = ({
@@ -37,10 +36,10 @@ const FieldList = ({
     onItemsChange(items.filter((item) => item.id !== id));
   };
 
-  const updateItem = <K extends keyof DataField>(
+  const updateItem = <K extends keyof FieldSpecInput>(
     id: string,
     key: K,
-    value: DataField[K],
+    value: FieldSpecInput[K],
   ) => {
     onItemsChange(
       items.map((item) => (item.id === id ? { ...item, [key]: value } : item)),
@@ -84,9 +83,9 @@ const FieldList = ({
                 />
 
                 <Select
-                  value={item.type}
+                  value={item.data_type}
                   onValueChange={(value) =>
-                    updateItem(item.id, "type", value as DataField["type"])
+                    updateItem(item.id, "data_type", value)
                   }
                 >
                   <SelectTrigger className="min-w-[120px]">
@@ -106,9 +105,11 @@ const FieldList = ({
 
                 <Input
                   className="max-w-96"
-                  value={item.rule}
+                  value={item.format_hint ?? ""}
                   placeholder="格式規則（選填）"
-                  onChange={(e) => updateItem(item.id, "rule", e.target.value)}
+                  onChange={(e) =>
+                    updateItem(item.id, "format_hint", e.target.value)
+                  }
                 />
 
                 <Field
@@ -117,9 +118,9 @@ const FieldList = ({
                 >
                   <Checkbox
                     id={`isImportant-${item.id}`}
-                    checked={item.isImportant}
+                    checked={item.is_key_field}
                     onCheckedChange={(checked) =>
-                      updateItem(item.id, "isImportant", checked === true)
+                      updateItem(item.id, "is_key_field", checked === true)
                     }
                   />
 

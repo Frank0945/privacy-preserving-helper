@@ -1,6 +1,7 @@
 import type {
   ClarificationNeeded,
   ErrorDetail,
+  FieldSpecInput,
   ValidationErrorResponse,
 } from "@/api/gen";
 import type { ResponseErrorConfig } from "@kubb/plugin-client/clients/axios";
@@ -16,20 +17,12 @@ export const typeList: {
   { label: "日期", value: "日期" },
 ];
 
-export interface DataField {
-  id: string;
-  name: string;
-  type: FieldType;
-  rule: string;
-  isImportant: boolean;
-}
-
-export const createDataField = (): DataField => ({
+export const createDataField = (): FieldSpecInput => ({
   id: crypto.randomUUID(),
   name: "",
-  type: "文字",
-  rule: "",
-  isImportant: false,
+  data_type: "文字",
+  format_hint: null,
+  is_key_field: false,
 });
 
 export const parseAnalyzeError = (

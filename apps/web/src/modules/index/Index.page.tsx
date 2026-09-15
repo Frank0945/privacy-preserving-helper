@@ -12,8 +12,12 @@ const IndexPage = () => {
   return (
     <Layout>
       <DataForm setFields={setFields} />
-      <Comparison fields={fields} />
-      <Suggestion />
+      {fields.length != 0 && (
+        <>
+          <Comparison fields={fields} />
+          <Suggestion fields={fields} />
+        </>
+      )}
     </Layout>
   );
 };
