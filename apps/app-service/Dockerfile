@@ -2,8 +2,6 @@ FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
 
 WORKDIR /workspace
 
-COPY libs/database /workspace/libs/database
-
 COPY apps/app-service/pyproject.toml apps/app-service/uv.lock /workspace/apps/app-service/
 
 WORKDIR /workspace/apps/app-service

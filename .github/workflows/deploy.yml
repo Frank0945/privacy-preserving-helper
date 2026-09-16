@@ -2,7 +2,7 @@ name: Deploy to Server
 
 on:
   push:
-    branches: [ "production" ]
+    branches: ["production"]
 
 jobs:
   deploy:
@@ -12,20 +12,20 @@ jobs:
         uses: appleboy/ssh-action@v1.2.4
         env:
           BACKEND_CORS_ORIGINS: ${{ secrets.BACKEND_CORS_ORIGINS }}
-          TZ: ${{ secrets.TZ }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           # tell the action which env variables to pass to the remote script
-          envs: BACKEND_CORS_ORIGINS,TZ
+          envs: BACKEND_CORS_ORIGINS,GEMINI_API_KEY
           script: |
             set -e
-            
+
             cd /opt/privacy-preserving-helper
 
             echo "--- Generating .env file ---"
-            
+
             # Disable shell debug to avoid leaking secrets
             set +x
             # Backup existing .env if it exists
@@ -35,11 +35,11 @@ jobs:
 
             {
               echo "BACKEND_CORS_ORIGINS=$BACKEND_CORS_ORIGINS"
-              echo "TZ=$TZ"
+              echo "GEMINI_API_KEY=$GEMINI_API_KEY"
             } > deploy/.env.tmp
 
             mv deploy/.env.tmp deploy/.env
-            
+
             echo "--- .env file created ---"
 
             echo "--- Pulling latest code ---"
@@ -48,5 +48,5 @@ jobs:
 
             echo "--- Rebuilding Docker containers ---"
             docker compose -f deploy/docker-compose.yml up -d --build
-            
+
             docker image prune -f
