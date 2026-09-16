@@ -17,9 +17,9 @@ export const typeList: {
   { label: "日期", value: "日期" },
 ];
 
-export const createDataField = (): FieldSpecInput => ({
+export const createDataField = (name: string = ""): FieldSpecInput => ({
   id: crypto.randomUUID(),
-  name: "",
+  name: name,
   data_type: "文字",
   format_hint: null,
   is_key_field: false,

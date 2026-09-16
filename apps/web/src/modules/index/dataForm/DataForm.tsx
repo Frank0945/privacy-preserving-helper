@@ -1,4 +1,4 @@
-import { useState, type Dispatch, type SetStateAction } from "react";
+import { useState } from "react";
 import {
   analyzeRequestSampleCountEnum,
   purposeEnum,
@@ -39,12 +39,17 @@ export interface DataActionsValue {
 }
 
 interface DataFormProps {
-  setFields: Dispatch<SetStateAction<ProcessedField[]>>;
+  updateFields: (fields: ProcessedField[]) => void;
 }
 
-const DataForm = ({ setFields }: DataFormProps) => {
+const DataForm = ({ updateFields }: DataFormProps) => {
   const [items, setItems] = useState<FieldSpecInput[]>(() => [
-    createDataField(),
+    createDataField("姓名"),
+    createDataField("身份證字號"),
+    createDataField("出生年月日"),
+    createDataField("職業"),
+    createDataField("月消費總計"),
+    createDataField("年薪"),
   ]);
 
   const [actions, setActions] = useState<DataActionsValue>({
@@ -73,7 +78,7 @@ const DataForm = ({ setFields }: DataFormProps) => {
       },
       {
         onSuccess: (data) => {
-          setFields(data.fields ?? []);
+          updateFields(data.fields ?? []);
         },
       },
     );

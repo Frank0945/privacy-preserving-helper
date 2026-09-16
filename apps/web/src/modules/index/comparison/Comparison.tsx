@@ -8,6 +8,7 @@ import {
 import {
   Item,
   ItemContent,
+  ItemDescription,
   ItemGroup,
   ItemMedia,
   ItemTitle,
@@ -16,14 +17,16 @@ import { ScrollArea, ScrollBar } from "@/components/atoms/scroll-area";
 import { cn } from "cn";
 import { ChartNoAxesGanttIcon, StarsIcon } from "lucide-react";
 
+import type { ChangedFieldMap } from "./comparison";
 import DataTable from "./DataTable";
 
 interface ComparisonProps {
   fields: ProcessedField[];
+  changedFieldMap: ChangedFieldMap;
 }
 
-const Comparison = ({ fields }: ComparisonProps) => {
-  const titles = ["Before", "After"];
+const Comparison = ({ fields, changedFieldMap }: ComparisonProps) => {
+  const titles = ["原始資料", "隱私保護後"];
   const isBefore = (title: string) => title === titles[0];
 
   return (
@@ -35,7 +38,7 @@ const Comparison = ({ fields }: ComparisonProps) => {
       <CardContent>
         <ItemGroup className="grid grid-cols-2">
           {titles.map((title) => (
-            <Item className="items-start gap-2" variant="outline" key={title}>
+            <Item className="gap-2" variant="outline" key={title}>
               <ItemMedia variant="icon">
                 {isBefore(title) ? (
                   <ChartNoAxesGanttIcon className="text-muted-foreground" />
@@ -53,9 +56,13 @@ const Comparison = ({ fields }: ComparisonProps) => {
                 >
                   {title}
                 </ItemTitle>
-
+                <ItemDescription></ItemDescription>
                 <ScrollArea className="w-full">
-                  <DataTable fields={fields} />
+                  <DataTable
+                    fields={fields}
+                    isApplyFormula={!isBefore(title)}
+                    changedFieldMap={changedFieldMap}
+                  />
                   <ScrollBar orientation="horizontal" />
                 </ScrollArea>
               </ItemContent>
