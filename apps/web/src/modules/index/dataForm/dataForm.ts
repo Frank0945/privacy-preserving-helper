@@ -5,6 +5,7 @@ import type {
   ValidationErrorResponse,
 } from "@/api/gen";
 import type { ResponseErrorConfig } from "@kubb/plugin-client/clients/axios";
+import { nanoid } from "nanoid";
 
 export type FieldType = "文字" | "數字" | "日期";
 
@@ -18,7 +19,7 @@ export const typeList: {
 ];
 
 export const createDataField = (name: string = ""): FieldSpecInput => ({
-  id: crypto.randomUUID(),
+  id: nanoid(),
   name: name,
   data_type: "文字",
   format_hint: null,
