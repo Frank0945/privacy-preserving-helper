@@ -8,7 +8,7 @@ import type { AnalyzeApiAnalyzePostMutationRequest, AnalyzeApiAnalyzePostMutatio
 import type { RequestConfig, ResponseErrorConfig } from "@kubb/plugin-client/clients/axios";
 
 function getAnalyzeApiAnalyzePostUrl() {
-  const res = { method: 'POST', url: `/api/api/analyze` as const }  
+  const res = { method: 'POST', url: `/api/analyze` as const }  
   return res
 }
 
