@@ -120,7 +120,7 @@ _FUNCTION_RE = re.compile(r"([A-Za-z_][A-Za-z0-9_.]*)\s*\(")
 _CELL_REF_RE = re.compile(r"(?<![A-Za-z0-9_])\$?[A-Za-z]{1,3}\$?\d+(?![A-Za-z0-9_(])")
 _SCIENTIFIC_RE = re.compile(r"\d\s*[eE]\s*[+-]?\s*\d")
 _FORBIDDEN_CHARS = ("!", "[", "]", "'", ":", ";", "|", "\n", "\r")
-MAX_TEMPLATE_LENGTH = 500
+MAX_TEMPLATE_LENGTH = 4000
 
 
 def validate_template(template: str, technique: str) -> Optional[str]:
