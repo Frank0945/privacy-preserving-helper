@@ -3,6 +3,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import routes from "~react-pages";
 import { BrowserRouter, useRoutes } from "react-router-dom";
 
+import { TooltipProvider } from "./components/atoms/tooltip";
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -20,7 +22,9 @@ const App = () => {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <ThemeProvider storageKey="vite-ui-theme">
-          <CurrentRoute />
+          <TooltipProvider>
+            <CurrentRoute />
+          </TooltipProvider>
         </ThemeProvider>
       </BrowserRouter>
     </QueryClientProvider>

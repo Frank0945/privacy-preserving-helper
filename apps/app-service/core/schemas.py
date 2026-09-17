@@ -146,6 +146,9 @@ class ExcelFormulaTemplate(BaseModel):
 class ProcessedField(BaseModel):
     field_id: str = Field(..., description="與請求中的 fields[].id 完全相同")
     field_name: str = Field(..., description="欄位名稱（原樣回傳，方便直接顯示）")
+    is_key_field: bool = Field(
+        ..., description="是否為關鍵分析欄位（原樣回傳，方便直接顯示）"
+    )
     technique: Technique = Field(..., description="LLM 判斷的隱私保護技術")
     reason: str = Field(
         "",

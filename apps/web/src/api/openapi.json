@@ -1,22 +1,24 @@
 {
     "openapi": "3.1.0",
     "info": {
-        "title": "FastAPI",
+        "title": "隱私保護建議平台 API",
+        "description": "提供：合成假資料生成、隱私保護技術判斷（mask/generalize/suppress/differential_privacy）、Excel 公式建議。所有請求/回應參數皆有中文說明，詳見各 Endpoint 的 Schema。",
         "version": "0.1.0"
     },
     "paths": {
-        "/company/register": {
+        "/api/analyze": {
             "post": {
                 "tags": [
-                    "company"
+                    "privacy-analysis"
                 ],
-                "summary": "Register Company",
-                "operationId": "register_company",
+                "summary": "分析欄位規格，產生合成假資料、隱私保護技術建議與 Excel 公式",
+                "description": "**流程**\n\n1. 呼叫 LLM Task B 判斷每個欄位適合的隱私保護技術與建議參數\n2. 呼叫 LLM Task A 產生合成假資料（`sample_before`）\n3. 呼叫 LLM Task C 產生 Excel 公式與滑桿規格（會拿到 Task A 的範例資料以便驗算）\n4. 後端做安全檢查；沒通過就把原因回饋給 Task C 重寫一次，\n   仍不通過則該欄位回報 `formula_error`，不替換成其他公式\n5. 回傳滑桿設定、假資料與公式\n\n後端不內建任何公式。技術判斷與公式全部由 LLM 決定。\n\n**欄位對應**\n\n`fields[].id` 由前端產生，後端與三個 LLM 任務全程使用同一組 id。\n回應中的 `field_id` 與請求完全相同，可直接對回前端表單的那一列。",
+                "operationId": "analyze_api_analyze_post",
                 "requestBody": {
                     "content": {
-                        "application/x-www-form-urlencoded": {
+                        "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/Body_register_company"
+                                "$ref": "#/components/schemas/AnalyzeRequest"
                             }
                         }
                     },
@@ -28,178 +30,37 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/CompanyDTO"
+                                    "$ref": "#/components/schemas/AnalyzeResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "LLM 判定輸入與本功能無關而拒絕。請顯示 detail 給使用者",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorDetail"
                                 }
                             }
                         }
                     },
                     "422": {
-                        "description": "Validation Error",
+                        "description": "請求格式不符。由 FastAPI 在進入函式前檢查，不會呼叫 LLM",
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/HTTPValidationError"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/company/list": {
-            "get": {
-                "tags": [
-                    "company"
-                ],
-                "summary": "Get All Companies",
-                "operationId": "get_all_companies",
-                "responses": {
-                    "200": {
-                        "description": "Successful Response",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "items": {
-                                        "$ref": "#/components/schemas/CompanyDTO"
-                                    },
-                                    "type": "array",
-                                    "title": "Response Get All Companies"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/portfolio/{company_id}": {
-            "get": {
-                "tags": [
-                    "portfolio"
-                ],
-                "summary": "Get Portfolio",
-                "operationId": "get_portfolio",
-                "parameters": [
-                    {
-                        "name": "company_id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string",
-                            "title": "Company Id"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Successful Response",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/PortfolioDTO"
+                                    "$ref": "#/components/schemas/ValidationErrorResponse"
                                 }
                             }
                         }
                     },
-                    "422": {
-                        "description": "Validation Error",
+                    "502": {
+                        "description": "LLM 相關失敗，請顯示「服務暫時無法使用，請稍後再試」。細分原因看 `error_code`：`llm_invalid_output`／`quota_exceeded`／`llm_timeout`／`llm_unavailable`",
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/HTTPValidationError"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/portfolio/history/{company_id}": {
-            "get": {
-                "tags": [
-                    "portfolio"
-                ],
-                "summary": "Get Portfolio History",
-                "operationId": "get_portfolio_history",
-                "parameters": [
-                    {
-                        "name": "company_id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string",
-                            "title": "Company Id"
-                        }
-                    },
-                    {
-                        "name": "tokens[]",
-                        "in": "query",
-                        "required": false,
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "type": "string"
-                            },
-                            "default": [],
-                            "title": "Tokens[]"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Successful Response",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/PortfolioHistoryDTO"
-                                }
-                            }
-                        }
-                    },
-                    "422": {
-                        "description": "Validation Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/HTTPValidationError"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/wallet/import": {
-            "post": {
-                "tags": [
-                    "wallet"
-                ],
-                "summary": "Import Wallet",
-                "operationId": "import_wallet",
-                "requestBody": {
-                    "content": {
-                        "multipart/form-data": {
-                            "schema": {
-                                "$ref": "#/components/schemas/Body_import_wallet"
-                            }
-                        }
-                    },
-                    "required": true
-                },
-                "responses": {
-                    "200": {
-                        "description": "Successful Response",
-                        "content": {
-                            "application/json": {
-                                "schema": {}
-                            }
-                        }
-                    },
-                    "422": {
-                        "description": "Validation Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                    "$ref": "#/components/schemas/ErrorDetail"
                                 }
                             }
                         }
@@ -210,217 +71,485 @@
     },
     "components": {
         "schemas": {
-            "Body_import_wallet": {
+            "AnalyzeRequest": {
                 "properties": {
-                    "excel_file": {
-                        "type": "string",
-                        "format": "binary",
-                        "title": "Excel File"
+                    "fields": {
+                        "items": {
+                            "$ref": "#/components/schemas/FieldSpecInput"
+                        },
+                        "type": "array",
+                        "maxItems": 30,
+                        "minItems": 1,
+                        "title": "Fields"
                     },
-                    "company_id": {
-                        "type": "string",
-                        "title": "Company Id"
+                    "sample_count": {
+                        "type": "integer",
+                        "enum": [
+                            5,
+                            10,
+                            20
+                        ],
+                        "title": "Sample Count",
+                        "description": "要生成幾筆範例假資料",
+                        "default": 5
                     },
-                    "tag": {
-                        "type": "string",
-                        "title": "Tag"
+                    "purpose": {
+                        "$ref": "#/components/schemas/Purpose",
+                        "description": "資料使用目的"
+                    },
+                    "purpose_detail": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "maxLength": 200
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Purpose Detail",
+                        "description": "purpose 為「其他」時必填的自訂說明"
                     }
                 },
                 "type": "object",
                 "required": [
-                    "excel_file",
-                    "company_id",
-                    "tag"
+                    "fields",
+                    "purpose"
                 ],
-                "title": "Body_import_wallet"
+                "title": "AnalyzeRequest"
             },
-            "Body_register_company": {
+            "AnalyzeResponse": {
                 "properties": {
-                    "name": {
+                    "status": {
                         "type": "string",
-                        "title": "Name"
-                    }
-                },
-                "type": "object",
-                "required": [
-                    "name"
-                ],
-                "title": "Body_register_company"
-            },
-            "CompanyDTO": {
-                "properties": {
-                    "company_id": {
-                        "type": "string",
-                        "format": "uuid",
-                        "title": "Company Id"
+                        "enum": [
+                            "ok",
+                            "need_clarification"
+                        ],
+                        "title": "Status",
+                        "description": "`ok`：看 fields｜`need_clarification`：看 clarifications_needed，fields 為空陣列"
                     },
-                    "name": {
-                        "type": "string",
-                        "title": "Name"
+                    "fields": {
+                        "items": {
+                            "$ref": "#/components/schemas/ProcessedField"
+                        },
+                        "type": "array",
+                        "title": "Fields",
+                        "description": "順序與請求的 fields 相同"
+                    },
+                    "clarifications_needed": {
+                        "items": {
+                            "$ref": "#/components/schemas/ClarificationNeeded"
+                        },
+                        "type": "array",
+                        "title": "Clarifications Needed",
+                        "description": "需要使用者補充的欄位。目前一次只會回報一個（遇到第一個就停止後續任務）"
                     }
                 },
                 "type": "object",
                 "required": [
-                    "company_id",
-                    "name"
+                    "status"
                 ],
-                "title": "CompanyDTO"
+                "title": "AnalyzeResponse"
             },
-            "HTTPValidationError": {
+            "ClarificationNeeded": {
+                "properties": {
+                    "field_id": {
+                        "type": "string",
+                        "title": "Field Id",
+                        "description": "需要澄清的欄位 id；LLM 未正確回傳 id 時為空字串"
+                    },
+                    "field_name": {
+                        "type": "string",
+                        "title": "Field Name",
+                        "description": "欄位名稱",
+                        "default": ""
+                    },
+                    "clarification_question": {
+                        "type": "string",
+                        "title": "Clarification Question",
+                        "description": "要顯示給使用者的追問"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "field_id",
+                    "clarification_question"
+                ],
+                "title": "ClarificationNeeded"
+            },
+            "ErrorDetail": {
                 "properties": {
                     "detail": {
-                        "items": {
-                            "$ref": "#/components/schemas/ValidationError"
-                        },
-                        "type": "array",
-                        "title": "Detail"
-                    }
-                },
-                "type": "object",
-                "title": "HTTPValidationError"
-            },
-            "PortfolioDTO": {
-                "properties": {
-                    "wallets": {
-                        "items": {
-                            "$ref": "#/components/schemas/PortfolioWalletDTO"
-                        },
-                        "type": "array",
-                        "title": "Wallets"
+                        "type": "string",
+                        "title": "Detail",
+                        "description": "可直接顯示給使用者的錯誤說明"
+                    },
+                    "error_code": {
+                        "type": "string",
+                        "enum": [
+                            "llm_refused",
+                            "llm_invalid_output",
+                            "quota_exceeded",
+                            "llm_timeout",
+                            "llm_unavailable"
+                        ],
+                        "title": "Error Code",
+                        "description": "機器可讀的原因代碼。\n`llm_refused`：LLM 判定輸入與本功能無關（400）\n`llm_invalid_output`：LLM 回傳內容不符預期（502）\n`quota_exceeded`：Google 端回報配額已用盡（502）\n`llm_timeout`：LLM 重試後仍逾時（502）\n`llm_unavailable`：Gemini 其他錯誤，例如金鑰無效（502）"
                     }
                 },
                 "type": "object",
                 "required": [
-                    "wallets"
+                    "detail",
+                    "error_code"
                 ],
-                "title": "PortfolioDTO"
+                "title": "ErrorDetail",
+                "description": "400 / 502 的回應格式。\n\n前端只需依狀態碼決定要顯示什麼；`error_code` 供需要細分時使用\n（例如想對配額用盡顯示不同文案），不細分時可以忽略。"
             },
-            "PortfolioHistoryDTO": {
+            "ExcelFormulaTemplate": {
                 "properties": {
-                    "queryable_tokens": {
+                    "variant": {
+                        "type": "string",
+                        "title": "Variant",
+                        "description": "這條公式的代碼。**mask 保證有 left / middle / right 三條**（讓使用者切換遮蔽位置，後端會檢查缺一就要求 LLM 補上）；其他技術的 variant 由 LLM 命名、條數不固定（例如日期可能有文字格式與 Excel 日期格式兩條），請用 label 渲染選單",
+                        "examples": [
+                            "middle"
+                        ]
+                    },
+                    "label": {
+                        "type": "string",
+                        "title": "Label",
+                        "description": "給使用者看的公式名稱",
+                        "examples": [
+                            "遮蔽中間 N 位"
+                        ]
+                    },
+                    "formula_template": {
+                        "type": "string",
+                        "title": "Formula Template",
+                        "description": "公式樣板，含 {cell} 與 {param} 佔位符，以字串取代即可使用",
+                        "examples": [
+                            "=REPLACE({cell},1,MIN({param},LEN({cell})),REPT(\"*\",MIN({param},LEN({cell}))))"
+                        ]
+                    },
+                    "cell_placeholder": {
+                        "type": "string",
+                        "title": "Cell Placeholder",
+                        "description": "原始資料儲存格的佔位符，**要代入哪一格由前端決定**。畫面預覽時代入前端暫存試算表中放 sample_before[r] 的那一格；提供給使用者複製時代入該欄位在他自己 Excel 中的儲存格",
+                        "default": "{cell}"
+                    },
+                    "param_placeholder": {
+                        "type": "string",
+                        "title": "Param Placeholder",
+                        "description": "滑桿值的佔位符",
+                        "default": "{param}"
+                    },
+                    "description": {
+                        "type": "string",
+                        "title": "Description",
+                        "description": "使用說明",
+                        "default": ""
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "variant",
+                    "label",
+                    "formula_template"
+                ],
+                "title": "ExcelFormulaTemplate",
+                "description": "一條由 LLM 產生、並通過後端安全檢查的 Excel 公式。\n\n後端不內建任何公式，所有公式都由 Task C 依 Task B 的建議撰寫。\n沒通過檢查的公式不會出現在這裡（見 ProcessedField.formula_error）。"
+            },
+            "FieldSpecInput": {
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "minLength": 1,
+                        "pattern": "^[A-Za-z0-9_-]+$",
+                        "title": "Id",
+                        "description": "欄位唯一識別碼，**由前端產生**（例如 `f1`、`crypto.randomUUID()`）。同一次請求內不可重複。欄位名稱允許重複，後端與 LLM 一律以此 id 對應。",
+                        "examples": [
+                            "f1"
+                        ]
+                    },
+                    "name": {
+                        "type": "string",
+                        "maxLength": 50,
+                        "minLength": 1,
+                        "title": "Name",
+                        "description": "欄位名稱",
+                        "examples": [
+                            "手機號碼"
+                        ]
+                    },
+                    "data_type": {
+                        "type": "string",
+                        "maxLength": 20,
+                        "minLength": 1,
+                        "title": "Data Type",
+                        "description": "欄位型態，建議使用「文字 / 數字 / 金額 / 日期」；後端會依關鍵字判斷要套哪一種公式",
+                        "examples": [
+                            "文字"
+                        ]
+                    },
+                    "format_hint": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "maxLength": 200
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Format Hint",
+                        "description": "格式規則或用途補充（選填）。收到 need_clarification 時，把使用者的補充說明填在這裡再重送",
+                        "examples": [
+                            "09XX-XXX-XXX"
+                        ]
+                    },
+                    "is_key_field": {
+                        "type": "boolean",
+                        "title": "Is Key Field",
+                        "description": "是否為關鍵分析欄位",
+                        "default": false
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "id",
+                    "name",
+                    "data_type"
+                ],
+                "title": "FieldSpecInput",
+                "description": "使用者在前端表單輸入的單一欄位規格。"
+            },
+            "ProcessedField": {
+                "properties": {
+                    "field_id": {
+                        "type": "string",
+                        "title": "Field Id",
+                        "description": "與請求中的 fields[].id 完全相同"
+                    },
+                    "field_name": {
+                        "type": "string",
+                        "title": "Field Name",
+                        "description": "欄位名稱（原樣回傳，方便直接顯示）"
+                    },
+                    "is_key_field": {
+                        "type": "boolean",
+                        "title": "Is Key Field",
+                        "description": "是否為關鍵分析欄位（原樣回傳，方便直接顯示）"
+                    },
+                    "technique": {
+                        "type": "string",
+                        "enum": [
+                            "mask",
+                            "generalize",
+                            "suppress",
+                            "differential_privacy"
+                        ],
+                        "title": "Technique",
+                        "description": "LLM 判斷的隱私保護技術"
+                    },
+                    "reason": {
+                        "type": "string",
+                        "title": "Reason",
+                        "description": "給非技術背景使用者看的白話說明。若請求的 purpose 為「其他」，LLM 會在這段文字裡註明它把 purpose_detail 判讀成哪一種情境，並提醒使用者確認",
+                        "default": ""
+                    },
+                    "param": {
+                        "$ref": "#/components/schemas/SliderParam",
+                        "description": "滑桿設定。min/max/step/default 由 LLM 依範例資料決定，後端只做合理性檢查"
+                    },
+                    "sample_before": {
                         "items": {
                             "type": "string"
                         },
                         "type": "array",
-                        "title": "Queryable Tokens"
+                        "title": "Sample Before",
+                        "description": "處理前的合成假資料（非真人資料）"
                     },
-                    "data": {
+                    "excel_formulas": {
                         "items": {
-                            "$ref": "#/components/schemas/TokenHistoryDTO"
+                            "$ref": "#/components/schemas/ExcelFormulaTemplate"
                         },
                         "type": "array",
-                        "title": "Data"
-                    }
-                },
-                "type": "object",
-                "required": [
-                    "queryable_tokens",
-                    "data"
-                ],
-                "title": "PortfolioHistoryDTO"
-            },
-            "PortfolioWalletDTO": {
-                "properties": {
-                    "type": {
-                        "type": "string",
-                        "title": "Type"
+                        "title": "Excel Formulas",
+                        "description": "通過檢查的公式清單。抑制（suppress）固定為空陣列；若為空陣列但技術不是 suppress，表示公式產生失敗，請看 formula_error"
                     },
-                    "token": {
-                        "type": "string",
-                        "title": "Token"
-                    },
-                    "chain": {
-                        "type": "string",
-                        "title": "Chain"
-                    },
-                    "address": {
-                        "type": "string",
-                        "title": "Address"
-                    },
-                    "balance": {
+                    "default_variant": {
                         "anyOf": [
                             {
-                                "type": "string",
-                                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+                                "type": "string"
                             },
                             {
                                 "type": "null"
                             }
                         ],
-                        "title": "Balance"
+                        "title": "Default Variant",
+                        "description": "初始要選用哪一條公式的 variant（mask 即 LLM 建議的遮蔽位置）；沒有公式時為 null。使用者仍可自行切換到 excel_formulas 中的其他條"
                     },
-                    "usd_value": {
+                    "formula_error": {
                         "anyOf": [
                             {
-                                "type": "string",
-                                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+                                "type": "string"
                             },
                             {
                                 "type": "null"
                             }
                         ],
-                        "title": "Usd Value"
+                        "title": "Formula Error",
+                        "description": "公式產生失敗的原因（LLM 修正後仍未通過安全檢查，或 LLM 未提供）。前端請顯示「這個欄位的公式產生失敗，請重新分析」，不要顯示技術細節給一般使用者"
                     },
-                    "created_at": {
-                        "type": "string",
-                        "format": "date-time",
-                        "title": "Created At"
-                    }
-                },
-                "type": "object",
-                "required": [
-                    "type",
-                    "token",
-                    "chain",
-                    "address",
-                    "balance",
-                    "usd_value",
-                    "created_at"
-                ],
-                "title": "PortfolioWalletDTO"
-            },
-            "TimeValueDTO": {
-                "properties": {
-                    "timestamp": {
-                        "type": "string",
-                        "format": "date-time",
-                        "title": "Timestamp"
+                    "dp_sensitivity": {
+                        "anyOf": [
+                            {
+                                "type": "number"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Dp Sensitivity",
+                        "description": "僅 differential_privacy：LLM 判斷並已代入公式的敏感度（單一個體最多能影響此數值多少）"
                     },
-                    "total_usd_value": {
-                        "type": "string",
-                        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                        "title": "Total Usd Value"
-                    }
-                },
-                "type": "object",
-                "required": [
-                    "timestamp",
-                    "total_usd_value"
-                ],
-                "title": "TimeValueDTO"
-            },
-            "TokenHistoryDTO": {
-                "properties": {
-                    "token": {
-                        "type": "string",
-                        "title": "Token"
-                    },
-                    "history": {
+                    "warnings": {
                         "items": {
-                            "$ref": "#/components/schemas/TimeValueDTO"
+                            "type": "string"
                         },
                         "type": "array",
-                        "title": "History"
+                        "title": "Warnings",
+                        "description": "此欄位的提醒事項，建議顯示給使用者"
                     }
                 },
                 "type": "object",
                 "required": [
-                    "token",
-                    "history"
+                    "field_id",
+                    "field_name",
+                    "is_key_field",
+                    "technique",
+                    "param",
+                    "sample_before",
+                    "excel_formulas"
                 ],
-                "title": "TokenHistoryDTO"
+                "title": "ProcessedField"
             },
-            "ValidationError": {
+            "Purpose": {
+                "type": "string",
+                "enum": [
+                    "內部使用",
+                    "跨部門提供",
+                    "對外公開研究",
+                    "其他"
+                ],
+                "title": "Purpose"
+            },
+            "SliderParam": {
+                "properties": {
+                    "control_type": {
+                        "type": "string",
+                        "enum": [
+                            "slider",
+                            "none"
+                        ],
+                        "title": "Control Type",
+                        "description": "`slider`：顯示滑桿｜`none`：不需要滑桿（抑制）"
+                    },
+                    "param_name": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Param Name",
+                        "description": "參數代碼，由 LLM 命名（常見值：mask_length、interval、year_interval、epsilon）。僅供前端識別，不要用它來決定計算邏輯 —— 計算一律交給公式"
+                    },
+                    "min": {
+                        "anyOf": [
+                            {
+                                "type": "number"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Min",
+                        "description": "滑桿最小值"
+                    },
+                    "max": {
+                        "anyOf": [
+                            {
+                                "type": "number"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Max",
+                        "description": "滑桿最大值"
+                    },
+                    "step": {
+                        "anyOf": [
+                            {
+                                "type": "number"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Step",
+                        "description": "滑桿間距"
+                    },
+                    "default": {
+                        "anyOf": [
+                            {
+                                "type": "number"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Default",
+                        "description": "平台建議值（畫面初始值）"
+                    },
+                    "unit": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Unit",
+                        "description": "單位或說明文字，直接顯示在滑桿旁"
+                    },
+                    "value_when_none": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Value When None",
+                        "description": "control_type 為 none 時固定為 \"none\"，其餘為 null"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "control_type"
+                ],
+                "title": "SliderParam",
+                "description": "前端滑桿設定。抑制（suppress）不需要滑桿，此時 control_type 為 none、其餘欄位皆為 null。"
+            },
+            "ValidationErrorItem": {
                 "properties": {
                     "loc": {
                         "items": {
@@ -434,15 +563,18 @@
                             ]
                         },
                         "type": "array",
-                        "title": "Location"
+                        "title": "Loc",
+                        "description": "出錯位置，例如 [\"body\", \"fields\", 0, \"name\"] 代表第 1 個欄位的 name"
                     },
                     "msg": {
                         "type": "string",
-                        "title": "Message"
+                        "title": "Msg",
+                        "description": "錯誤訊息（由 Pydantic 產生）"
                     },
                     "type": {
                         "type": "string",
-                        "title": "Error Type"
+                        "title": "Type",
+                        "description": "錯誤類型代碼，例如 missing、literal_error、value_error"
                     }
                 },
                 "type": "object",
@@ -451,7 +583,24 @@
                     "msg",
                     "type"
                 ],
-                "title": "ValidationError"
+                "title": "ValidationErrorItem"
+            },
+            "ValidationErrorResponse": {
+                "properties": {
+                    "detail": {
+                        "items": {
+                            "$ref": "#/components/schemas/ValidationErrorItem"
+                        },
+                        "type": "array",
+                        "title": "Detail"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "detail"
+                ],
+                "title": "ValidationErrorResponse",
+                "description": "422：請求格式驗證失敗。由 FastAPI 在進入函式前產生，不會呼叫 LLM。"
             }
         }
     }
