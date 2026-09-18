@@ -84,15 +84,26 @@ class AnalyzeRequest(BaseModel):
 # 回應
 # ===========================================================================
 class SliderParam(BaseModel):
-    """前端滑桿設定。抑制（suppress）不需要滑桿，此時 control_type 為 none、其餘欄位皆為 null。"""
+    """前端控制元件的設定。
 
-    control_type: Literal["slider", "none"] = Field(
-        ..., description="`slider`：顯示滑桿｜`none`：不需要滑桿（抑制）"
+    連續參數用滑桿（control_type=slider）；離散層級改用下拉選單
+    （control_type=select，選項就是 excel_formulas 的各個 variant，此處欄位皆為 null）。
+    """
+
+    control_type: Literal["slider", "select", "none"] = Field(
+        ...,
+        description="前端要顯示哪種控制元件。\n"
+        "`slider`：連續數值參數（遮蔽位數、數值區間、epsilon），用 min/max/step/default\n"
+        "`select`：離散層級（產業別要分大類還是中類、日期要保留到年還是年月）——"
+        "選項就是 excel_formulas 的每一條，用 label 渲染下拉選單，"
+        "初始選 ProcessedField.default_variant；此時 min/max/step/default 皆為 null\n"
+        "`none`：沒有可調參數（抑制，或公式產生失敗）",
     )
     param_name: Optional[str] = Field(
         default=None,
-        description="參數代碼，由 LLM 命名（常見值：mask_length、interval、year_interval、epsilon）。"
-        "僅供前端識別，不要用它來決定計算邏輯 —— 計算一律交給公式",
+        description="滑桿的參數代碼，由 LLM 命名（常見值：mask_length、interval、epsilon）。"
+        "僅供前端識別，不要用它來決定計算邏輯 —— 計算一律交給公式。"
+        "control_type 不是 slider 時為 null",
     )
     min: Optional[float] = Field(default=None, description="滑桿最小值")
     max: Optional[float] = Field(default=None, description="滑桿最大值")
@@ -117,7 +128,8 @@ class ExcelFormulaTemplate(BaseModel):
 
     variant: str = Field(
         ...,
-        description="這條公式的代碼。**mask 保證有 left / middle / right 三條**"
+        description="這條公式的代碼，也是 control_type=select 時下拉選單的值。"
+        "**mask 保證有 left / middle / right 三條**"
         "（讓使用者切換遮蔽位置，後端會檢查缺一就要求 LLM 補上）；"
         "其他技術的 variant 由 LLM 命名、條數不固定"
         "（例如日期可能有文字格式與 Excel 日期格式兩條），請用 label 渲染選單",
@@ -139,16 +151,17 @@ class ExcelFormulaTemplate(BaseModel):
         "畫面預覽時代入前端暫存試算表中放 sample_before[r] 的那一格；"
         "提供給使用者複製時代入該欄位在他自己 Excel 中的儲存格",
     )
-    param_placeholder: str = Field("{param}", description="滑桿值的佔位符")
+    param_placeholder: Optional[str] = Field(
+        default="{param}",
+        description="滑桿值的佔位符。control_type=select 的公式沒有可調參數，此欄為 null，"
+        "前端只需取代 cell_placeholder",
+    )
     description: str = Field("", description="使用說明")
 
 
 class ProcessedField(BaseModel):
     field_id: str = Field(..., description="與請求中的 fields[].id 完全相同")
     field_name: str = Field(..., description="欄位名稱（原樣回傳，方便直接顯示）")
-    is_key_field: bool = Field(
-        ..., description="是否為關鍵分析欄位（原樣回傳，方便直接顯示）"
-    )
     technique: Technique = Field(..., description="LLM 判斷的隱私保護技術")
     reason: str = Field(
         "",
@@ -170,8 +183,8 @@ class ProcessedField(BaseModel):
     )
     default_variant: Optional[str] = Field(
         default=None,
-        description="初始要選用哪一條公式的 variant（mask 即 LLM 建議的遮蔽位置）；"
-        "沒有公式時為 null。使用者仍可自行切換到 excel_formulas 中的其他條",
+        description="初始要選用哪一條公式的 variant。control_type=select 時就是下拉選單的預設選項；"
+        "mask 則是 LLM 建議的遮蔽位置。沒有公式時為 null。使用者可自行切換到其他條",
     )
     formula_error: Optional[str] = Field(
         default=None,

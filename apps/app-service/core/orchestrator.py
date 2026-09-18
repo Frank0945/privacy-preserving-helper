@@ -28,6 +28,7 @@ import re
 from typing import Any, Optional
 
 from core.config import get_settings
+from core.formula_check import check_formula, check_noise_magnitude
 from core.formula_guard import validate_slider, validate_template
 from core.llm_client import LLMOutputError, generate_json
 from core.privacy_engine import (
@@ -92,6 +93,7 @@ class _FieldRecord:
         # Task C
         self.formulas: list[ExcelFormulaTemplate] = []
         self.default_variant: Optional[str] = None
+        self.control_type: str = "slider"  # Task C 決定：slider 或 select
         self.slider: Optional[SliderParam] = None
         self.sensitivity: Optional[float] = None
         self.formula_error: Optional[str] = None
@@ -146,8 +148,8 @@ async def _run_task_b(records: list[_FieldRecord]) -> None:
             {
                 "field_id": r.field_id,
                 "field_name": r.spec.name,
-                "is_key_field": r.spec.is_key_field,
                 "data_type": r.spec.data_type,
+                "is_key_field": r.spec.is_key_field,
                 "format_hint": r.spec.format_hint,
             }
             for r in records
@@ -222,7 +224,6 @@ def _task_c_payload(
         entry: dict[str, Any] = {
             "field_id": r.field_id,
             "field_name": r.spec.name,
-            "is_key_field": r.spec.is_key_field,
             "technique": r.technique,
             "resolved_data_type": r.resolved_type,
             "suggested_param": r.suggested_param,
@@ -262,7 +263,13 @@ def _collect_formulas(
         if not isinstance(template, str):
             rejected.append({"variant": variant, "reason": "formula_template 不是字串"})
             continue
-        problem = validate_template(template, record.technique)
+        requires_param = record.control_type == "slider"
+        problem = validate_template(template, record.technique, requires_param)
+        if problem is not None:
+            rejected.append({"variant": variant, "reason": problem})
+            continue
+        # 函數白名單擋不住「語意錯誤但語法合法」的公式，所以再用範例資料實際算一次
+        problem = _check_semantics(template, record)
         if problem is not None:
             rejected.append({"variant": variant, "reason": problem})
             continue
@@ -293,11 +300,57 @@ def _collect_formulas(
     return accepted, rejected
 
 
-def _apply_slider(item: dict[str, Any], record: _FieldRecord) -> Optional[str]:
-    """把 LLM 的滑桿規格寫進 record，回傳錯誤原因（None 表示通過）。"""
+def _check_semantics(template: str, record: _FieldRecord) -> Optional[str]:
+    """拿範例資料實際跑公式，檢查輸出是否合理。
+
+    滑桿型欄位會用 min / 建議值 / max 各試一次；下拉選單型沒有參數，
+    只檢查「算得出結果」與技術專屬規則。
+    """
+    slider = record.slider
+    if slider is None:
+        return None
+    if slider.control_type != "slider":
+        return check_formula(
+            template=template,
+            technique=record.technique,
+            resolved_type=record.resolved_type,
+            samples=record.sample_before,
+        )
+    if slider.min is None or slider.max is None:
+        return None
+    return check_formula(
+        template=template,
+        technique=record.technique,
+        resolved_type=record.resolved_type,
+        samples=record.sample_before,
+        minimum=slider.min,
+        maximum=slider.max,
+        step=slider.step or 1.0,
+        default=slider.default if slider.default is not None else slider.min,
+        param_name=slider.param_name or "",
+    )
+
+
+def _apply_control(item: dict[str, Any], record: _FieldRecord) -> Optional[str]:
+    """讀取 Task C 決定的控制元件（滑桿或下拉選單），回傳錯誤原因（None 表示通過）。
+
+    - slider：連續參數，需要 min/max/step/default，公式必須含 {param}
+    - select：離散層級，每個 variant 一條完整公式，沒有可調參數
+    """
+    raw_type = item.get("control_type")
+    control_type = raw_type if raw_type in ("slider", "select") else None
+    if control_type is None:
+        # 舊格式相容：有給 slider 物件就當 slider，否則當 select
+        control_type = "slider" if isinstance(item.get("slider"), dict) else "select"
+    record.control_type = control_type
+
+    if control_type == "select":
+        record.slider = SliderParam(control_type="select")
+        return None
+
     raw = item.get("slider")
     if not isinstance(raw, dict):
-        return "沒有回傳 slider 物件"
+        return "control_type 是 slider，但沒有回傳 slider 物件"
     problem = validate_slider(
         raw.get("min"), raw.get("max"), raw.get("step"), raw.get("default")
     )
@@ -370,10 +423,12 @@ async def _run_task_c(records: list[_FieldRecord], max_repairs: int) -> None:
         for record in pending:
             item = indexed[record.field_id]
             problems: list[dict[str, str]] = []
+            # 這一輪重新累積，否則重試時會出現重複的警告
+            record.warnings.clear()
 
-            slider_problem = _apply_slider(item, record)
-            if slider_problem:
-                problems.append({"variant": "(slider)", "reason": slider_problem})
+            control_problem = _apply_control(item, record)
+            if control_problem:
+                problems.append({"variant": "(control)", "reason": control_problem})
 
             sensitivity_problem = _apply_sensitivity(item, record)
             if sensitivity_problem:
@@ -391,6 +446,17 @@ async def _run_task_c(records: list[_FieldRecord], max_repairs: int) -> None:
                 if isinstance(raw_default, str) and raw_default in variants
                 else (variants[0] if variants else None)
             )
+
+            if not problems and record.technique == "differential_privacy":
+                slider = record.slider
+                if slider and slider.default is not None and record.formulas:
+                    note = check_noise_magnitude(
+                        record.formulas[0].formula_template,
+                        record.sample_before,
+                        slider.default,
+                    )
+                    if note:
+                        record.warnings.append(note)
 
             if problems:
                 logger.warning(
@@ -417,8 +483,8 @@ async def _run_task_c(records: list[_FieldRecord], max_repairs: int) -> None:
         record.formula_error = (
             f"公式產生失敗（已讓 LLM 修正 {max_repairs} 次）：{detail}"
         )
-        if record.slider is None:
-            # 沒有滑桿規格就無法顯示滑桿，但仍要回傳一個合法的 param 物件
+        if record.slider is None or record.slider.control_type == "select":
+            # 沒有可用的控制元件時，讓前端知道這個欄位沒有可調參數
             record.slider = SliderParam(control_type="none", value_when_none="none")
     _ = expected_ids  # 僅用於說明預期範圍，實際檢查在 _index_by_field_id
 
@@ -426,20 +492,31 @@ async def _run_task_c(records: list[_FieldRecord], max_repairs: int) -> None:
 # ---------------------------------------------------------------------------
 # 組裝
 # ---------------------------------------------------------------------------
-_QUOTED_LITERAL_RE = re.compile(r'"([^"]{2,})"')
+# 逐一配對引號，才不會把「兩個常值之間的程式碼」誤當成常值。
+# 例如 TEXT(...,"0"),"-",TEXT(...,"0") 用 {2,} 的寫法會抓到 `),` 這種東西。
+_QUOTED_LITERAL_RE = re.compile(r'"([^"]*)"')
+# 純數字、標點、格式字串（"0"、"0.00"、"-"、"yyyy"）不算「分類標籤」
+_NOT_A_LABEL_RE = re.compile(r"^[\d.,\-/:#%\s]*$|^[yYmMdD]+$")
 
 
 def _looks_like_value_mapping(record: _FieldRecord) -> bool:
-    """公式裡若出現多個「兩個字以上的字串常值」，表示它在做值對照而非截斷／計算。
+    """公式裡若出現多個「分類標籤」字串，表示它在做值對照而非截斷／計算。
 
     例如 IF({cell}="餐飲業","服務業",…)。這種公式只涵蓋 LLM 看得到的範例值，
     真實資料的其他值會落到預設類別，必須提醒使用者。
+
+    分隔符號與 TEXT 的格式字串（"-"、"0"、"yyyy"）不算，否則
+    年份區間公式會被誤判。
     """
     if record.technique != "generalize":
         return False
     for formula in record.formulas:
-        literals = _QUOTED_LITERAL_RE.findall(formula.formula_template)
-        if len(literals) >= 2:
+        labels = [
+            literal
+            for literal in _QUOTED_LITERAL_RE.findall(formula.formula_template)
+            if len(literal) >= 2 and not _NOT_A_LABEL_RE.match(literal)
+        ]
+        if len(labels) >= 2:
             return True
     return False
 
@@ -509,7 +586,6 @@ async def analyze(
             ProcessedField(
                 field_id=r.field_id,
                 field_name=r.spec.name,
-                is_key_field=r.spec.is_key_field,
                 technique=r.technique,
                 reason=r.reason,
                 param=param,

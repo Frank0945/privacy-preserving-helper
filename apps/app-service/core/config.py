@@ -14,9 +14,13 @@ class Settings(BaseSettings):
         env_file=".env", env_file_encoding="utf-8", extra="ignore"
     )
 
+    # --- Google AI Studio ---
     gemini_api_key: str = ""
     gemini_model: str = "gemini-3.5-flash-lite"
 
+    # --- Rate limit（對應 Google AI Studio 的 RPM / TPM / RPD 限制）---
+    # 這裡實作的是簡單的 RPM 限流器；TPM / RPD 建議在正式環境另外用
+    # Google Cloud 的配額監控或自行累計 token 數來把關。
     gemini_rpm_limit: int = 15
     gemini_timeout_seconds: int = 60
     # 注意：重試會一併計入 RPM
@@ -29,7 +33,9 @@ class Settings(BaseSettings):
     # 公式一律由 LLM（Task C）產生。若公式沒通過 core.formula_guard 的安全檢查，
     # 把原因回饋給 LLM 讓它重寫的次數。設為 0 表示不修正，直接回報 formula_error。
     # 每次修正都會多花一次請求額度。
-    formula_repair_attempts: int = 1
+    # 實測 1 次不夠：巢狀 IF 很深時 LLM 第一次常數錯括號，差分隱私也常忘記保護 LN。
+    # 2 次的成功率明顯較好，代價是失敗時多花一次請求額度。
+    formula_repair_attempts: int = 2
 
     # --- CORS ---
     cors_allow_origins: str = "*"
