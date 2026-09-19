@@ -2,6 +2,7 @@ import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import type { ProcessedField } from "@/api/gen";
 import { Alert, AlertTitle } from "@/components/atoms/alert";
 import { Badge } from "@/components/atoms/badge";
+import { Button } from "@/components/atoms/button";
 import {
   InputGroup,
   InputGroupAddon,
@@ -31,7 +32,13 @@ import {
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { mapParamToFormula } from "@/lib/utils";
 import { cn } from "cn";
-import { BadgeCheckIcon, CheckIcon, CircleXIcon, CopyIcon } from "lucide-react";
+import {
+  BadgeCheckIcon,
+  CheckIcon,
+  CircleXIcon,
+  CopyIcon,
+  Undo2Icon,
+} from "lucide-react";
 
 import type {
   ChangedFieldConfig,
@@ -74,8 +81,11 @@ const FieldSuggestion = ({
   const isSlider = (field: ProcessedField) =>
     field.param.control_type === "slider";
 
+  const isSelect = (field: ProcessedField) =>
+    field.param.control_type === "select";
+
   const getFormula = (field: ProcessedField) => {
-    if (field.default_variant && field.param.default) {
+    if (field.default_variant) {
       return mapParamToFormula(
         field.excel_formulas,
         variant,
@@ -134,29 +144,42 @@ const FieldSuggestion = ({
           {field.reason}
         </ItemDescription>
 
-        {field.excel_formulas.length > 1 && (
-          <Select value={variant} onValueChange={handleVariantChange}>
-            <SelectTrigger
-              className={cn("min-w-[180px]", isSlider(field) && "-mb-3")}
-            >
-              <SelectValue placeholder="Theme" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                {field.excel_formulas.map((item) => (
-                  <SelectItem key={item.variant} value={item.variant}>
-                    {item.label}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        )}
+        {field.excel_formulas.length > 1 ||
+          (isSelect(field) && (
+            <Select value={variant} onValueChange={handleVariantChange}>
+              <SelectTrigger
+                className={cn("min-w-[180px]", isSlider(field) && "-mb-3")}
+              >
+                <SelectValue placeholder="Theme" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {field.excel_formulas.map((item) => (
+                    <SelectItem key={item.variant} value={item.variant}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          ))}
 
         {isSlider(field) && (
           <div>
-            <div className="flex justify-end text-base">
-              {param + " " + field.param.unit}
+            <div className="flex h-8.5 w-full items-end">
+              {field.param.default != param[0] && (
+                <Button
+                  variant="outline"
+                  className="rounded-full"
+                  onClick={() => handleParamChange([field.param.default ?? 0])}
+                >
+                  <Undo2Icon />
+                  <span>還原為預設值</span>
+                </Button>
+              )}
+              <div className="ml-auto text-base">
+                {param + " " + field.param.unit}
+              </div>
             </div>
             <Slider
               className="my-2"
