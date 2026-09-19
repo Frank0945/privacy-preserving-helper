@@ -43,7 +43,7 @@ export type ProcessedField = {
     */
     reason?: string;
     /**
-     * @description 前端滑桿設定。抑制（suppress）不需要滑桿，此時 control_type 為 none、其餘欄位皆為 null。
+     * @description 前端控制元件的設定。\n\n連續參數用滑桿（control_type=slider）；離散層級改用下拉選單\n（control_type=select，選項就是 excel_formulas 的各個 variant，此處欄位皆為 null）。
      * @type object
     */
     param: SliderParam;
@@ -58,7 +58,7 @@ export type ProcessedField = {
     */
     excel_formulas: ExcelFormulaTemplate[];
     /**
-     * @description 初始要選用哪一條公式的 variant（mask 即 LLM 建議的遮蔽位置）；沒有公式時為 null。使用者仍可自行切換到 excel_formulas 中的其他條
+     * @description 初始要選用哪一條公式的 variant。control_type=select 時就是下拉選單的預設選項；mask 則是 LLM 建議的遮蔽位置。沒有公式時為 null。使用者可自行切換到其他條
     */
     default_variant?: (string | null);
     /**
