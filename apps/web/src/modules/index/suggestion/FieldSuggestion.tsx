@@ -75,26 +75,20 @@ const FieldSuggestion = ({
     setVariant(field.default_variant ?? "");
   }, [field]);
 
-  const isSuppressed = (field: ProcessedField) =>
-    field.technique === "suppress";
+  const isSuppressed = field.technique === "suppress";
 
-  const isSlider = (field: ProcessedField) =>
-    field.param.control_type === "slider";
+  const isSlider = field.param.control_type === "slider";
 
-  const isSelect = (field: ProcessedField) =>
-    field.param.control_type === "select";
+  const isSelect = field.param.control_type === "select";
 
-  const getFormula = (field: ProcessedField) => {
-    if (field.default_variant) {
-      return mapParamToFormula(
-        field.excel_formulas,
-        variant,
-        param[0] ?? 0,
-        indexToLetter(index) + "2",
-      );
-    }
-    return "";
-  };
+  const isMultipleFormula = field.excel_formulas.length > 1;
+
+  const resolvedFormula = mapParamToFormula(
+    field.excel_formulas,
+    variant,
+    param[0] ?? 0,
+    indexToLetter(index) + "2",
+  );
 
   const updateChangedFieldMap = (updates: Partial<ChangedFieldConfig>) => {
     setChangedFieldMap((prev) => ({
@@ -135,7 +129,7 @@ const FieldSuggestion = ({
           </div>
           <Badge
             className="h-8 items-center px-3"
-            variant={isSuppressed(field) ? "destructive" : "secondary"}
+            variant={isSuppressed ? "destructive" : "secondary"}
           >
             {processedFieldTechniqueEnum[field.technique]}
           </Badge>
@@ -144,37 +138,38 @@ const FieldSuggestion = ({
           {field.reason}
         </ItemDescription>
 
-        {field.excel_formulas.length > 1 ||
-          (isSelect(field) && (
-            <Select value={variant} onValueChange={handleVariantChange}>
-              <SelectTrigger
-                className={cn("min-w-[180px]", isSlider(field) && "-mb-3")}
-              >
-                <SelectValue placeholder="Theme" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {field.excel_formulas.map((item) => (
-                    <SelectItem key={item.variant} value={item.variant}>
-                      {item.label}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          ))}
+        {(isMultipleFormula || isSelect) && (
+          <Select value={variant} onValueChange={handleVariantChange}>
+            <SelectTrigger className={cn("min-w-[180px]", isSlider && "-mb-3")}>
+              <SelectValue placeholder="Theme" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                {field.excel_formulas.map((item) => (
+                  <SelectItem key={item.variant} value={item.variant}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        )}
 
-        {isSlider(field) && (
+        {isSlider && (
           <div>
-            <div className="flex h-8.5 w-full items-end">
+            <div className="relative flex h-8.5 w-full items-end">
               {field.param.default != param[0] && (
                 <Button
+                  size="sm"
                   variant="outline"
-                  className="rounded-full"
+                  className={cn(
+                    "rounded-full",
+                    isMultipleFormula && "absolute -top-full right-0",
+                  )}
                   onClick={() => handleParamChange([field.param.default ?? 0])}
                 >
                   <Undo2Icon />
-                  <span>還原為預設值</span>
+                  <span className="translate-y-px">還原為預設值</span>
                 </Button>
               )}
               <div className="ml-auto text-base">
@@ -201,7 +196,7 @@ const FieldSuggestion = ({
             <InputGroup>
               <InputGroupTextarea
                 className="text-muted-foreground [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-thumb:hover]:bg-muted-foreground/30 field-sizing-content h-19 overflow-y-auto font-mono [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent"
-                value={getFormula(field)}
+                value={resolvedFormula}
                 readOnly
               />
               <InputGroupAddon align="inline-end">
@@ -210,14 +205,14 @@ const FieldSuggestion = ({
                   title="Copy"
                   size="icon-xs"
                   onClick={() => {
-                    copyToClipboard(getFormula(field));
+                    copyToClipboard(resolvedFormula);
                   }}
                 >
                   {isCopied ? <CheckIcon /> : <CopyIcon />}
                 </InputGroupButton>
               </InputGroupAddon>
             </InputGroup>
-            {field.formula_error && !getFormula(field) && (
+            {field.formula_error && !resolvedFormula && (
               <Alert className="border-destructive" variant="destructive">
                 <CircleXIcon />
                 <AlertTitle>{field.formula_error}</AlertTitle>
