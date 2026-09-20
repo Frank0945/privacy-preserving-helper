@@ -217,7 +217,7 @@ const FieldSuggestion = ({
                 </InputGroupButton>
               </InputGroupAddon>
             </InputGroup>
-            {field.formula_error && (
+            {field.formula_error && !getFormula(field) && (
               <Alert className="border-destructive" variant="destructive">
                 <CircleXIcon />
                 <AlertTitle>{field.formula_error}</AlertTitle>
