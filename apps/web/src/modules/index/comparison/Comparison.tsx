@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import type { ProcessedField } from "@/api/gen";
 import {
   Card,
@@ -29,6 +30,31 @@ const Comparison = ({ fields, changedFieldMap }: ComparisonProps) => {
   const titles = ["原始資料", "隱私保護後"];
   const isBefore = (title: string) => title === titles[0];
 
+  const leftScrollRef = useRef<HTMLDivElement>(null);
+  const rightScrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const left = leftScrollRef.current;
+    const right = rightScrollRef.current;
+
+    if (!left || !right) return;
+
+    const sync = (source: HTMLDivElement, target: HTMLDivElement) => {
+      target.scrollLeft = source.scrollLeft;
+    };
+
+    const onLeftScroll = () => sync(left, right);
+    const onRightScroll = () => sync(right, left);
+
+    left.addEventListener("scroll", onLeftScroll);
+    right.addEventListener("scroll", onRightScroll);
+
+    return () => {
+      left.removeEventListener("scroll", onLeftScroll);
+      right.removeEventListener("scroll", onRightScroll);
+    };
+  }, []);
+
   return (
     <Card>
       <CardHeader>
@@ -57,7 +83,10 @@ const Comparison = ({ fields, changedFieldMap }: ComparisonProps) => {
                   {title}
                 </ItemTitle>
                 <ItemDescription></ItemDescription>
-                <ScrollArea className="w-full">
+                <ScrollArea
+                  viewportRef={isBefore(title) ? leftScrollRef : rightScrollRef}
+                  className="w-full"
+                >
                   <DataTable
                     fields={fields}
                     isApplyFormula={!isBefore(title)}

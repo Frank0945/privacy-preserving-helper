@@ -26,9 +26,10 @@ const getEffectiveConfig = (
 ): ChangedFieldConfig | null => {
   const changed = changedFieldMap[field.field_id];
   const variant = changed?.variant ?? field.default_variant;
-  const param = changed?.param ?? field.param.default;
+  // If the field has no default param, it might be a select control type, in which case the param is not used and can be null (0).
+  const param = changed?.param ?? field.param.default ?? 0;
 
-  return variant && param != null ? { variant, param } : null;
+  return variant != null ? { variant, param } : null;
 };
 
 const isSameConfig = (

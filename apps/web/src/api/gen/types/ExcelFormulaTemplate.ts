@@ -9,7 +9,7 @@
 */
 export type ExcelFormulaTemplate = {
     /**
-     * @description 這條公式的代碼。**mask 保證有 left / middle / right 三條**（讓使用者切換遮蔽位置，後端會檢查缺一就要求 LLM 補上）；其他技術的 variant 由 LLM 命名、條數不固定（例如日期可能有文字格式與 Excel 日期格式兩條），請用 label 渲染選單
+     * @description 這條公式的代碼，也是 control_type=select 時下拉選單的值。**mask 保證有 left / middle / right 三條**（讓使用者切換遮蔽位置，後端會檢查缺一就要求 LLM 補上）；其他技術的 variant 由 LLM 命名、條數不固定（例如日期可能有文字格式與 Excel 日期格式兩條），請用 label 渲染選單
      * @type string
     */
     variant: string;
@@ -30,11 +30,10 @@ export type ExcelFormulaTemplate = {
     */
     cell_placeholder?: string;
     /**
-     * @description 滑桿值的佔位符
+     * @description 滑桿值的佔位符。control_type=select 的公式沒有可調參數，此欄為 null，前端只需取代 cell_placeholder
      * @default "{param}"
-     * @type string | undefined
     */
-    param_placeholder?: string;
+    param_placeholder?: (string | null);
     /**
      * @description 使用說明
      * @default ""

@@ -6,22 +6,23 @@
 
 export const sliderParamControlTypeEnum = {
     "slider": "slider",
+    "select": "select",
     "none": "none"
 } as const;
 
 export type SliderParamControlTypeEnumKey = (typeof sliderParamControlTypeEnum)[keyof typeof sliderParamControlTypeEnum];
 
 /**
- * @description 前端滑桿設定。抑制（suppress）不需要滑桿，此時 control_type 為 none、其餘欄位皆為 null。
+ * @description 前端控制元件的設定。\n\n連續參數用滑桿（control_type=slider）；離散層級改用下拉選單\n（control_type=select，選項就是 excel_formulas 的各個 variant，此處欄位皆為 null）。
 */
 export type SliderParam = {
     /**
-     * @description `slider`：顯示滑桿｜`none`：不需要滑桿（抑制）
+     * @description 前端要顯示哪種控制元件。\n`slider`：連續數值參數（遮蔽位數、數值區間、epsilon），用 min/max/step/default\n`select`：離散層級（產業別要分大類還是中類、日期要保留到年還是年月）——選項就是 excel_formulas 的每一條，用 label 渲染下拉選單，初始選 ProcessedField.default_variant；此時 min/max/step/default 皆為 null\n`none`：沒有可調參數（抑制，或公式產生失敗）
      * @type string
     */
     control_type: SliderParamControlTypeEnumKey;
     /**
-     * @description 參數代碼，由 LLM 命名（常見值：mask_length、interval、year_interval、epsilon）。僅供前端識別，不要用它來決定計算邏輯 —— 計算一律交給公式
+     * @description 滑桿的參數代碼，由 LLM 命名（常見值：mask_length、interval、epsilon）。僅供前端識別，不要用它來決定計算邏輯 —— 計算一律交給公式。control_type 不是 slider 時為 null
     */
     param_name?: (string | null);
     /**
