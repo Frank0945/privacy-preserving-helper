@@ -236,6 +236,7 @@ def _task_c_payload(
         entry: dict[str, Any] = {
             "field_id": r.field_id,
             "field_name": r.spec.name,
+            "is_key_field": r.spec.is_key_field,
             "technique": r.technique,
             "resolved_data_type": r.resolved_type,
             "suggested_param": r.suggested_param,
@@ -968,6 +969,7 @@ async def analyze(
             ProcessedField(
                 field_id=r.field_id,
                 field_name=r.spec.name,
+                is_key_field=r.spec.is_key_field,
                 technique=r.technique,
                 reason=r.reason,
                 param=param,
