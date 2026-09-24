@@ -162,9 +162,6 @@ class ExcelFormulaTemplate(BaseModel):
 class ProcessedField(BaseModel):
     field_id: str = Field(..., description="與請求中的 fields[].id 完全相同")
     field_name: str = Field(..., description="欄位名稱（原樣回傳，方便直接顯示）")
-    is_key_field: bool = Field(
-        ..., description="是否為關鍵分析欄位（原樣回傳，方便直接顯示）"
-    )
     technique: Technique = Field(..., description="LLM 判斷的隱私保護技術")
     reason: str = Field(
         "",
@@ -196,8 +193,55 @@ class ProcessedField(BaseModel):
     )
     dp_sensitivity: Optional[float] = Field(
         default=None,
-        description="僅 differential_privacy：LLM 判斷並已代入公式的敏感度"
-        "（單一個體最多能影響此數值多少）",
+        description="差分隱私的敏感度 Δf（已代入公式中的數字）。"
+        "technique 為 differential_privacy 時屬於主要技術；"
+        "否則搭配下方 dp_* 欄位，屬於額外提供的選項",
+    )
+
+    # --- 額外的差分隱私選項（與主要技術並存）------------------------------
+    # 例如「年薪」主要建議泛化成區間，但使用者若要對外公布平均年薪這類彙總值，
+    # 可以另外套用差分隱私。作用對象不是單筆資料，而是使用者自己算好的彙總值。
+    dp_param: Optional[SliderParam] = Field(
+        default=None,
+        description="額外差分隱私選項的 epsilon 滑桿（control_type 固定為 slider）。"
+        "為 null 表示這個欄位沒有提供額外的差分隱私選項"
+        "（technique 本身就是 differential_privacy 時也是 null —— 那時看 param）",
+    )
+    dp_excel_formulas: List[ExcelFormulaTemplate] = Field(
+        default_factory=list,
+        description="額外差分隱私選項的公式。**`{cell}` 要代入的不是原始資料那一格，"
+        "而是使用者自己算好的彙總值（例如平均年薪）所在的儲存格**；"
+        "`{param}` 是 epsilon。空陣列表示沒有提供這個選項",
+    )
+    dp_default_variant: Optional[str] = Field(
+        default=None, description="dp_excel_formulas 初始要選用哪一條的 variant"
+    )
+    dp_sensitivity_basis: Optional[str] = Field(
+        default=None,
+        description="敏感度 Δf 是怎麼算出來的：彙總方式、LLM 假設的數值上下界與筆數、"
+        "代入後的算式。**這是 LLM 依假設推算的，不是依使用者的真實資料** —— "
+        "請顯示在敏感度數字旁邊，讓使用者能檢查假設是否符合他的資料"
+        "（筆數差一個數量級，Δf 就差一個數量級）",
+    )
+    dp_explanation: Optional[str] = Field(
+        default=None,
+        description="差分隱私計算方法的白話說明（LLM 產生），可直接顯示給使用者，"
+        "讓他理解 M(x)=f(x)+Lap(Δf/ε) 這件事在做什麼",
+    )
+    dp_input_hint: Optional[str] = Field(
+        default=None,
+        description="要請使用者把什麼值填進 `{cell}`，例如「請填入你自己算好的全體平均年薪」。"
+        "後端不計算這個值",
+    )
+    dp_formula_error: Optional[str] = Field(
+        default=None,
+        description="差分隱私公式未完全通過檢查時的原因。"
+        "**只要 LLM 判定這個欄位適用差分隱私，dp_param 與相關說明就一定會回傳**，"
+        "不會因為公式有問題就整個消失。此欄不是 null 時分兩種情況：\n"
+        "一、`dp_excel_formulas` 仍有公式 —— 公式通過安全檢查但沒通過語意驗算，"
+        "可以顯示但請提醒使用者核對結果\n"
+        "二、`dp_excel_formulas` 是空陣列 —— 公式沒通過安全檢查（例如夾帶會外送資料的函數），"
+        "不能交給使用者執行，請顯示「差分隱私公式產生失敗」",
     )
     warnings: List[str] = Field(
         default_factory=list, description="此欄位的提醒事項，建議顯示給使用者"

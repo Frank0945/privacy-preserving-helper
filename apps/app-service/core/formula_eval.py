@@ -71,6 +71,19 @@ class UnsupportedFunction(FormulaError):
         self.name = name
 
 
+class UnsupportedFormat(FormulaError):
+    """TEXT 的格式字串超出求值器能處理的範圍。
+
+    與 UnsupportedFunction 同一類：不代表公式有錯，而是後端無法驗算。
+    必須明確丟出來，不能硬算 —— 例如 TEXT(0.85,"0%") 在 Excel 是 "85%"，
+    但數值格式器會算成 "1%"，安靜算錯會讓語意檢查拿錯的值下判斷。
+    """
+
+    def __init__(self, fmt: str):
+        super().__init__(f"求值器無法處理的 TEXT 格式字串：{fmt!r}")
+        self.fmt = fmt
+
+
 class ExcelError:
     """Excel 的錯誤值（#VALUE! 之類）。
 
@@ -285,7 +298,8 @@ def _to_text(value: Value) -> str:
 
 
 def _serial_to_date(serial: float) -> date:
-    return EXCEL_EPOCH + timedelta(days=int(serial))
+    # 往下取整，不是截斷 —— 負序號時 int(-45.6) 會得到 -45，Excel 的行為是 -46
+    return EXCEL_EPOCH + timedelta(days=math.floor(serial))
 
 
 def _as_date(value: Value) -> date:
@@ -313,27 +327,111 @@ def _arg(args: list[Value], index: int, default: Optional[Value] = None) -> Valu
     raise FormulaError(f"函數缺少第 {index + 1} 個引數")
 
 
+_DATE_TOKEN_RE = re.compile(r"(y+|m+|d+)", re.IGNORECASE)
+_DATE_FORMAT_RE = re.compile(r"^[ymdYMD\s\-/.年月日]*$")
+
+
+def _format_date(value: Value, fmt: str) -> str:
+    """把 yyyy / mm / dd 之類的 token 換成實際數字，其餘字元原樣保留。
+
+    mm 在 Excel 也可能是「分鐘」，但本平台不處理時間，一律當月份。
+    """
+    parsed = _as_date(value)
+    out: list[str] = []
+    position = 0
+    for match in _DATE_TOKEN_RE.finditer(fmt):
+        out.append(fmt[position : match.start()])
+        token = match.group().lower()
+        if token[0] == "y":
+            out.append(
+                f"{parsed.year % 100:02d}" if len(token) <= 2 else str(parsed.year)
+            )
+        elif token[0] == "m":
+            out.append(f"{parsed.month:02d}" if len(token) >= 2 else str(parsed.month))
+        else:
+            out.append(f"{parsed.day:02d}" if len(token) >= 2 else str(parsed.day))
+        position = match.end()
+    out.append(fmt[position:])
+    return "".join(out)
+
+
+def _format_number(value: Value, fmt: str) -> str:
+    """數值格式：0 與 # 是數字佔位符，其餘字元（- / 空白 中文…）原樣保留。
+
+    例如 TEXT(199112,"0000-00") → "1991-12"（由右往左填，literal 照擺）。
+    0 在數字用完時補 0，# 則留空。千分位的 "#,##0" 另外處理。
+    """
+    integer_part, _, decimal_part = fmt.partition(".")
+    decimals = sum(1 for ch in decimal_part if ch in "0#")
+    number = excel_round(_to_number(value), decimals)
+    negative = number < 0
+    digits = f"{abs(number):.{decimals}f}"
+    int_digits, _, frac_digits = digits.partition(".")
+
+    # 千分位：格式中出現 "#,#" 或 "0,0" 這種寫法
+    thousands = "," in integer_part and any(
+        integer_part[i] == "," and integer_part[i + 1 :].strip("0#,") == ""
+        for i in range(len(integer_part) - 1)
+    )
+    if thousands:
+        integer_part = integer_part.replace(",", "")
+
+    out: list[str] = []
+    index = len(int_digits) - 1
+    for char in reversed(integer_part):
+        if char in "0#":
+            if index >= 0:
+                out.append(int_digits[index])
+                index -= 1
+            elif char == "0":
+                out.append("0")
+        else:
+            out.append(char)
+    while index >= 0:  # 數字比佔位符多，剩下的全部補在最前面
+        out.append(int_digits[index])
+        index -= 1
+    text = "".join(reversed(out))
+
+    if thousands:
+        head, sep, tail = (
+            text.rpartition("".join(c for c in text if not c.isdigit())[-1:])
+            if not text.isdigit()
+            else ("", "", text)
+        )
+        grouped = f"{int(tail):,}" if tail.isdigit() and tail else tail
+        text = head + sep + grouped
+
+    if decimals:
+        fraction: list[str] = []
+        position = 0
+        for char in decimal_part:
+            if char in "0#":
+                fraction.append(
+                    frac_digits[position] if position < len(frac_digits) else "0"
+                )
+                position += 1
+            else:
+                fraction.append(char)
+        text = f"{text}.{''.join(fraction)}"
+    return f"-{text}" if negative else text
+
+
+# 數值格式只支援這些字元：0 # 是佔位符，其餘當 literal 原樣保留。
+# 百分比（%）、科學記號（E+00）、色彩／條件區段（[紅色]、;）、對齊符號（_ * ?）
+# 都會被算錯，一律丟 UnsupportedFormat 讓上層跳過驗算。
+_SAFE_NUMBER_FORMAT_RE = re.compile(r"^[0#,.\-/() 　年月日元萬千百十:]*$")
+
+
 def _fn_text(args: list[Value]) -> Value:
     value, fmt = _arg(args, 0), _to_text(_arg(args, 1))
-    if fmt.lower() in ("yyyy", "yy"):
-        year = _as_date(value).year
-        return str(year) if fmt.lower() == "yyyy" else f"{year % 100:02d}"
-    if fmt.lower() in ("mm", "m"):
-        return f"{_as_date(value).month:02d}"
-    if fmt.lower() in ("dd", "d"):
-        return f"{_as_date(value).day:02d}"
-    if fmt.lower() in ("yyyy-mm", "yyyy/mm"):
-        parsed = _as_date(value)
-        sep = "-" if "-" in fmt else "/"
-        return f"{parsed.year}{sep}{parsed.month:02d}"
-    if set(fmt) <= {"0"}:  # "00"、"0000" 之類的補零格式
-        return f"{int(excel_round(_to_number(value), 0)):0{len(fmt)}d}"
-    if fmt in ("0.0", "0.00", "0.000"):
-        digits = len(fmt.split(".")[1])
-        return f"{excel_round(_to_number(value), digits):.{digits}f}"
-    if fmt == "General":
+    if fmt.lower() in ("general", "@"):
         return _to_text(value)
-    raise FormulaError(f"不支援的 TEXT 格式字串：{fmt!r}")
+    # 含 y/m/d 且沒有數字佔位符 → 日期格式；否則當數值格式
+    if _DATE_FORMAT_RE.match(fmt) and _DATE_TOKEN_RE.search(fmt):
+        return _format_date(value, fmt)
+    if not _SAFE_NUMBER_FORMAT_RE.match(fmt):
+        raise UnsupportedFormat(fmt)
+    return _format_number(value, fmt)
 
 
 def _substring(text: str, start: int, length: int) -> str:
@@ -579,6 +677,26 @@ def _evaluate_rendered(formula: str, cell_value: str, param: float) -> str:
     if isinstance(result, ExcelError):
         raise FormulaError(f"公式算出 {result.code}（這格在 Excel 會顯示錯誤）")
     return _to_text(result)
+
+
+def unverifiable_reason(formula: str, sample: str, param: float = 1.0) -> Optional[str]:
+    """求值器無法驗算這條公式的原因；能驗算則回傳 None。
+
+    只回答「能不能算」，不管算出來合不合理 —— 後者是 formula_check 的事。
+    回傳的原因會放進該欄位的 warnings，讓使用者知道是哪個函數或格式沒被驗算。
+    """
+    missing = unsupported_functions(formula)
+    if missing:
+        return f"沒實作的函數 {sorted(missing)}"
+    try:
+        evaluate(formula, sample, param)
+    except UnsupportedFunction as exc:
+        return f"沒實作的函數 ['{exc.name}']"
+    except UnsupportedFormat as exc:
+        return f"無法處理的 TEXT 格式字串 {exc.fmt!r}"
+    except FormulaError:
+        return None  # 算得出來但結果有問題，交給 formula_check 判斷
+    return None
 
 
 def unsupported_functions(formula: str) -> set[str]:

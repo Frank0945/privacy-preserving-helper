@@ -24,7 +24,13 @@ from __future__ import annotations
 import re
 from typing import Optional
 
-from core.formula_eval import FormulaError, evaluate, unsupported_functions
+from core.formula_eval import (
+    FormulaError,
+    UnsupportedFormat,
+    UnsupportedFunction,
+    evaluate,
+    unsupported_functions,
+)
 from core.privacy_engine import ResolvedType
 
 # RAND() 的極端值組合。Excel 的 RAND() 可能回傳 0，LN(0) 會變成 #NUM!，
@@ -40,7 +46,11 @@ _RAND_STRESS = [
 
 # 輸出形如「1985-06」或「1985/6」時，後面那段視為月份
 _YEAR_MONTH_RE = re.compile(r"^(\d{4})\s*[-/]\s*(\d{1,2})$")
+# 輸出形如「1985-06-01」：泛化後還帶著「日」，而那個日通常是補出來的
+_FULL_DATE_RE = re.compile(r"^(\d{4})\s*[-/]\s*(\d{1,2})\s*[-/]\s*(\d{1,2})$")
 _LEADING_YEAR_RE = re.compile(r"(\d{4})")
+# 從原始資料（YYYY-MM-DD）取出月份，用來判斷輸出的月份是不是補出來的
+_MONTH_IN_SAMPLE_RE = re.compile(r"^\d{4}\s*[-/]\s*(\d{1,2})")
 MAX_SAMPLES_TO_CHECK = 20
 
 
@@ -109,6 +119,9 @@ def check_formula(
     for param in probes:
         try:
             results[param] = _run(template, usable, param)
+        except (UnsupportedFunction, UnsupportedFormat):
+            # 求值器能力不足，不是公式的錯 —— 放行，由 orchestrator 註記未經語意檢查
+            return None
         except FormulaError as exc:
             return (
                 f"用範例資料實際計算時失敗（參數={_fmt(param)}）：{exc}。"
@@ -178,12 +191,19 @@ def _check_rand_robustness(
 
 
 def check_noise_magnitude(
-    template: str, samples: list[str], default_param: float
+    template: str,
+    samples: list[str],
+    default_param: float,
+    minimum_param: Optional[float] = None,
 ) -> Optional[str]:
     """差分隱私的雜訊量是否大到讓資料失去意義（回傳提醒文字，不是拒絕原因）。
 
     敏感度取得過大時（例如直接用資料最大值），雜訊會蓋掉原始數值，
     甚至讓「消費總計」出現負數。這是參數選擇問題，不是公式寫錯，所以只提醒。
+
+    minimum_param 傳滑桿的最小值時會額外檢查「最壞情況」—— 拉普拉斯雜訊沒有邊界，
+    epsilon 拉到最小時負數會變得很常見（實測：平均 103 萬、Δf=20 萬，
+    ε=1 時 0.24% 是負數，ε=0.1 時變成 30%）。只看 default 會漏掉這件事。
     """
     numbers = []
     for value in samples:
@@ -213,6 +233,8 @@ def check_noise_magnitude(
 
     average = sum(deviations) / len(deviations)
     negative_rate = negatives / len(deviations)
+    all_non_negative = min(numbers) >= 0
+
     if average > data_scale:
         return (
             f"在建議的 epsilon 下，平均雜訊量約 {average:,.0f}，已超過範例資料的最大值 "
@@ -221,12 +243,40 @@ def check_noise_magnitude(
             "敏感度可能取得太大 —— 它應該是「單一個體最多能影響此數值多少」，"
             "不是整欄的最大值。請調整敏感度或提高 epsilon。"
         )
-    if negative_rate > 0.2 and min(numbers) >= 0:
+    if negative_rate > 0.2 and all_non_negative:
         return (
             f"原始資料都是非負數，但處理後約 {negative_rate:.0%} 會變成負數。"
-            "若這個欄位在語意上不可能為負（例如金額、次數），請調整敏感度或 epsilon。"
+            "若這個欄位在語意上不可能為負（例如金額、次數），請調整敏感度或 epsilon，"
+            "或在公式最外層加 MAX(...,0)（對已加噪結果的後處理，不破壞 epsilon 保證）。"
         )
+
+    # 最壞情況：epsilon 拉到滑桿最小值時，負數會不會變得很常見
+    if minimum_param is not None and minimum_param < default_param and all_non_negative:
+        worst_rate = _negative_rate(template, samples, minimum_param)
+        if worst_rate is not None and worst_rate > 0.1 and worst_rate > negative_rate:
+            return (
+                f"原始資料都是非負數，但把 epsilon 拉到最小值 {_fmt(minimum_param)} 時，"
+                f"約 {worst_rate:.0%} 的結果會變成負數"
+                f"（建議值 {_fmt(default_param)} 時只有 {negative_rate:.0%}）。"
+                "拉普拉斯雜訊沒有上下界，epsilon 越小越容易跑出負數。"
+                "若這個欄位在語意上不可能為負，可在公式最外層加 MAX(...,0) —— "
+                "那是對已加噪結果的後處理，不會破壞 epsilon 的保證，但會讓數值偏高。"
+            )
     return None
+
+
+def _negative_rate(template: str, samples: list[str], param: float) -> Optional[float]:
+    """在指定的 epsilon 下，處理後的結果有多少比例是負數。"""
+    total = negatives = 0
+    for value in samples:
+        for _ in range(60):
+            try:
+                if float(evaluate(template, value, param)) < 0:
+                    negatives += 1
+                total += 1
+            except (FormulaError, ValueError):
+                continue
+    return negatives / total if total else None
 
 
 def _check_mask(
@@ -291,11 +341,37 @@ def _check_generalize(
 def _check_date_output(
     samples: list[str], results: dict[float, list[str]], probes: list[float]
 ) -> Optional[str]:
-    """日期泛化最常見的錯誤：算出不存在的月份、或年份跑掉。"""
+    """日期泛化常見的三種錯誤：
+
+    1. 補出原始資料沒有的日期成分 —— 「只保留年」卻輸出 1991-01-01，
+       月和日是憑空補的，看起來像真實日期反而更容易誤導。
+    2. 月份不是 1~12（例如把月份除以 12 再捨去，算出 1985-00、1992-20）。
+    3. 年份跑到原始年份之外。
+    """
     for param in probes:
         for original, output in zip(samples, results[param]):
-            match = _YEAR_MONTH_RE.match(output.strip())
+            text = output.strip()
+
+            full = _FULL_DATE_RE.match(text)
+            if full:
+                return (
+                    f"「{original}」算出「{output}」—— 泛化後仍輸出到「日」這一層。"
+                    "只保留年就輸出「1991」，保留年月就輸出「1991-12」，"
+                    '不要補上 "-01" 或 "-01-01" 把它湊回完整日期的形狀：'
+                    "那個日（甚至月）是原始資料沒有的，看起來像真實日期反而更容易誤導使用者。"
+                )
+
+            match = _YEAR_MONTH_RE.match(text)
             if match:
+                original_month = _MONTH_IN_SAMPLE_RE.search(original)
+                if original_month and int(match.group(2)) != int(
+                    original_month.group(1)
+                ):
+                    return (
+                        f"「{original}」算出「{output}」—— 月份 {match.group(2)} 與原始資料的 "
+                        f"{original_month.group(1)} 不同，是補出來的。"
+                        "若這個層級只保留年份，請直接輸出「1991」，不要補上月份。"
+                    )
                 month = int(match.group(2))
                 if not 1 <= month <= 12:
                     return (
