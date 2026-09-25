@@ -1,14 +1,12 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import type { ProcessedField } from "@/api/gen";
-import { Alert, AlertTitle } from "@/components/atoms/alert";
-import { Badge } from "@/components/atoms/badge";
-import { Button } from "@/components/atoms/button";
 import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupTextarea,
-} from "@/components/atoms/input-group";
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/atoms/accordion";
+import { Badge } from "@/components/atoms/badge";
 import {
   Item,
   ItemContent,
@@ -23,27 +21,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/atoms/select";
-import { Slider } from "@/components/atoms/slider";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/atoms/tooltip";
-import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { mapParamToFormula } from "@/lib/utils";
 import { cn } from "cn";
-import {
-  BadgeCheckIcon,
-  CheckIcon,
-  CircleXIcon,
-  CopyIcon,
-  Undo2Icon,
-} from "lucide-react";
+import { BadgeCheckIcon } from "lucide-react";
 
 import type {
   ChangedFieldConfig,
   ChangedFieldMap,
 } from "../comparison/comparison";
+import DpPreviewTable from "./DpPreviewTable";
+import Formula from "./Formula";
+import ParamSlider from "./ParamSlider";
 
 interface DataItemProps {
   field: ProcessedField;
@@ -65,13 +58,13 @@ const FieldSuggestion = ({
   index,
   setChangedFieldMap,
 }: DataItemProps) => {
-  const { copyToClipboard, isCopied } = useCopyToClipboard();
-
   const [param, setParam] = useState([0]);
+  const [dpParam, setDpParam] = useState([0]);
   const [variant, setVariant] = useState("");
 
   useEffect(() => {
     setParam([field.param.default ?? 0]);
+    setDpParam([field.dp_param?.default ?? 0]);
     setVariant(field.default_variant ?? "");
   }, [field]);
 
@@ -90,6 +83,13 @@ const FieldSuggestion = ({
     indexToLetter(index) + "2",
   );
 
+  const resolvedDpFormula = mapParamToFormula(
+    field.dp_excel_formulas ?? [],
+    field.dp_default_variant ?? "",
+    dpParam[0] ?? 0,
+    "A2",
+  );
+
   const updateChangedFieldMap = (updates: Partial<ChangedFieldConfig>) => {
     setChangedFieldMap((prev) => ({
       ...prev,
@@ -100,9 +100,13 @@ const FieldSuggestion = ({
     }));
   };
 
-  const handleParamChange = (value: number[]) => {
+  const handleParamValueChange = (value: number[]) => {
     setParam(value);
     updateChangedFieldMap({ param: value[0] });
+  };
+
+  const handleDpParamValueChange = (value: number[]) => {
+    setDpParam(value);
   };
 
   const handleVariantChange = (value: string) => {
@@ -156,69 +160,56 @@ const FieldSuggestion = ({
         )}
 
         {isSlider && (
-          <div>
-            <div className="relative flex h-8.5 w-full items-end">
-              {field.param.default != param[0] && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className={cn(
-                    "rounded-full",
-                    isMultipleFormula && "absolute -top-full right-0",
-                  )}
-                  onClick={() => handleParamChange([field.param.default ?? 0])}
-                >
-                  <Undo2Icon />
-                  <span className="translate-y-px">還原為預設值</span>
-                </Button>
-              )}
-              <div className="ml-auto text-base">
-                {param + " " + field.param.unit}
-              </div>
-            </div>
-            <Slider
-              className="my-2"
-              value={param}
-              min={field.param.min ?? 0}
-              max={field.param.max ?? 0}
-              step={field.param.step ?? 0}
-              onValueChange={handleParamChange}
-            />
-            <div className="text-muted-foreground flex justify-between text-xs">
-              <span>{field.param.min} (MIN)</span>
-              <span>{field.param.max} (MAX)</span>
-            </div>
-          </div>
+          <ParamSlider
+            value={param}
+            sliderParam={field.param}
+            moveRestButtonOnTop={isMultipleFormula}
+            onValueChange={handleParamValueChange}
+          />
         )}
 
         {field.excel_formulas.length != 0 && (
-          <>
-            <InputGroup>
-              <InputGroupTextarea
-                className="text-muted-foreground [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-thumb:hover]:bg-muted-foreground/30 field-sizing-content h-19 overflow-y-auto font-mono [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent"
-                value={resolvedFormula}
-                readOnly
-              />
-              <InputGroupAddon align="inline-end">
-                <InputGroupButton
-                  aria-label="Copy"
-                  title="Copy"
-                  size="icon-xs"
-                  onClick={() => {
-                    copyToClipboard(resolvedFormula);
-                  }}
-                >
-                  {isCopied ? <CheckIcon /> : <CopyIcon />}
-                </InputGroupButton>
-              </InputGroupAddon>
-            </InputGroup>
-            {field.formula_error && !resolvedFormula && (
-              <Alert className="border-destructive" variant="destructive">
-                <CircleXIcon />
-                <AlertTitle>{field.formula_error}</AlertTitle>
-              </Alert>
-            )}
-          </>
+          <Formula
+            formula={resolvedFormula}
+            errorMessage={field.formula_error}
+          />
+        )}
+
+        {field.dp_excel_formulas && field.dp_param && (
+          <Item variant="outline" className="border-dashed">
+            <ItemContent className="w-full">
+              <Accordion type="single" collapsible>
+                <AccordionItem value="dp">
+                  <AccordionTrigger className="py-0 font-normal data-[state=open]:font-bold">
+                    使用「差分隱私」保護統計資料
+                  </AccordionTrigger>
+                  <AccordionContent className="h-full space-y-3 pt-3 pb-0">
+                    <div className="text-muted-foreground">
+                      {field.dp_explanation}
+                      <br />
+                      <br />
+                      {field.dp_sensitivity_basis}
+                    </div>
+                    <ParamSlider
+                      value={dpParam}
+                      sliderParam={field.dp_param}
+                      moveRestButtonOnTop={false}
+                      onValueChange={handleDpParamValueChange}
+                    />
+                    <Formula
+                      formula={resolvedDpFormula}
+                      errorMessage={field.dp_formula_error}
+                    />
+
+                    <DpPreviewTable
+                      formula={resolvedDpFormula}
+                      sample_before={field.sample_before}
+                    />
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            </ItemContent>
+          </Item>
         )}
       </ItemContent>
     </Item>
