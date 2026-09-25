@@ -36,7 +36,10 @@ const DataTable = ({
         <TableHeader className="bg-muted">
           <TableRow>
             {fields.map((field) => (
-              <TableHead key={field.field_id} className="px-6">
+              <TableHead
+                key={field.field_id}
+                className="text-muted-foreground px-6"
+              >
                 {field.field_name}
               </TableHead>
             ))}
