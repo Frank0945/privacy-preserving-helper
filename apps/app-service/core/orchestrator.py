@@ -54,7 +54,9 @@ from core.schemas import (
 
 logger = logging.getLogger(__name__)
 
-_VALID_TECHNIQUES = {"mask", "generalize", "suppress", "differential_privacy"}
+# Task B 可選的技術。差分隱私不在其中 —— 它作用於「使用者自己算好的彙總值」，
+# 不是原始資料的每一格，改由 Task C 在 generalize 的數值欄位上「額外」提供（dp_option）。
+_VALID_TECHNIQUES = {"mask", "generalize", "suppress"}
 # 傳給 Task C 的範例筆數。
 # 曾經設成 3 來省 token，結果 LLM 寫值對照公式時只涵蓋看得到的那 3 筆
 # （10 個縣市只對照到 3 個，其餘全部落到「其他地區」）。
@@ -177,6 +179,13 @@ async def _run_task_b(records: list[_FieldRecord]) -> None:
     for field_id, item in indexed.items():
         record = by_id[field_id]
         technique = item.get("technique")
+        if technique == "differential_privacy":
+            raise LLMOutputError(
+                f"Task B 對欄位「{record.spec.name}」選了 differential_privacy，"
+                "但差分隱私不是 Task B 的可選技術（它作用於使用者自己算好的彙總值，"
+                "不是原始資料的每一格）。彙總統計欄位請選 generalize，"
+                "後續流程會再判斷是否額外提供差分隱私選項。"
+            )
         if technique not in _VALID_TECHNIQUES:
             raise LLMOutputError(
                 f"Task B 對欄位「{record.spec.name}」給了無效的技術：{technique!r}"
@@ -244,6 +253,12 @@ def _task_c_payload(
             "samples": r.sample_before[:SAMPLES_FOR_TASK_C],
             # 數值欄位可以額外提供差分隱私選項（作用於使用者自己算好的彙總值）
             "may_offer_differential_privacy": _may_offer_dp(r),
+            # 敏感度要拿 samples 實際算，先把統計值算好避免 LLM 自己加減出錯
+            **(
+                {"sample_stats": _sample_stats(r.sample_before)}
+                if _may_offer_dp(r)
+                else {}
+            ),
         }
         if rejected and r.field_id in rejected:
             entry["rejected"] = rejected[r.field_id]
@@ -254,13 +269,44 @@ def _task_c_payload(
 def _may_offer_dp(record: _FieldRecord) -> bool:
     """這個欄位適不適合額外提供差分隱私選項。
 
-    數值欄位（年薪、月收入總計）除了泛化成區間之外，使用者若要對外公布平均值、
-    總和這類彙總結果，可以另外對那個彙總值套差分隱私。
-    技術本身已經是 differential_privacy 時不需要額外選項。
+    條件是「技術為 generalize」且「欄位是數值」：這類欄位（年薪、月收入總計）
+    除了泛化成區間之外，使用者若要對外公布平均值、總和這類彙總結果，
+    可以另外對那個彙總值套差分隱私。
+
+    遮罩與抑制的欄位不適用 —— 前者是固定格式的識別資料、後者整欄要刪掉，
+    都不會拿去算彙總統計。
     """
-    return record.resolved_type in ("integer", "decimal") and (
-        record.technique != "differential_privacy"
+    return record.technique == "generalize" and record.resolved_type in (
+        "integer",
+        "decimal",
     )
+
+
+def _sample_numbers(samples: list[str]) -> list[float]:
+    numbers = []
+    for value in samples:
+        try:
+            numbers.append(float(str(value).replace(",", "").strip()))
+        except (TypeError, ValueError):
+            continue
+    return numbers
+
+
+def _sample_stats(samples: list[str]) -> Optional[dict[str, float]]:
+    """samples 的最大值、最小值、筆數與平均，供 Task C 計算敏感度用。
+
+    自己算好給它，是因為敏感度必須以實際的範例資料為依據；
+    讓 LLM 自己從一串字串裡挑最大最小再相減，很容易算錯。
+    """
+    numbers = _sample_numbers(samples)
+    if not numbers:
+        return None
+    return {
+        "max": max(numbers),
+        "min": min(numbers),
+        "count": float(len(numbers)),
+        "mean": sum(numbers) / len(numbers),
+    }
 
 
 def _aggregate_probe(samples: list[str]) -> Optional[float]:
@@ -526,9 +572,24 @@ def _apply_dp_option(
     elif sensitivity > 0 and not _mentions_number(basis, sensitivity):
         basis_problem = (
             f"sensitivity_basis 沒有出現 sensitivity 的數字 {_fmt_sensitivity(sensitivity)}，"
-            "請把算式完整寫出來（例如「(1000000-300000)÷10 = 70000」），"
+            "請把算式完整寫出來（例如「(1580000-640000)÷5 = 188000」），"
             "讓使用者看得出這個數字是怎麼來的"
         )
+    else:
+        # 敏感度必須以實際的範例資料為依據，不能是憑空假設的上下界。
+        # 檢查算式裡有沒有出現 samples 的最大值或最小值。
+        stats = _sample_stats(record.sample_before)
+        if stats and not (
+            _mentions_number(basis, stats["max"])
+            or _mentions_number(basis, stats["min"])
+        ):
+            basis_problem = (
+                "sensitivity_basis 要用輸入的 samples 實際舉例計算，"
+                f"但算式裡沒有出現範例資料的最大值 {_fmt_sensitivity(stats['max'])} "
+                f"或最小值 {_fmt_sensitivity(stats['min'])}。"
+                "請寫成「範例資料共 N 筆，最高 X、最低 Y，Δf =（X − Y）÷ N = Z」的形式，"
+                "並提醒使用者真實資料的筆數不同時要重算"
+            )
     if basis_problem:
         problems.append(
             {"variant": "(dp_option.sensitivity_basis)", "reason": basis_problem}
@@ -720,6 +781,12 @@ def _fmt_probe(value: float) -> str:
 
 
 def _apply_sensitivity(item: dict[str, Any], record: _FieldRecord) -> Optional[str]:
+    """主要技術的敏感度。
+
+    差分隱私已經不是 Task B 的可選技術，所以這裡實際上不會被觸發；
+    保留是為了萬一日後把它加回主要技術時流程還在。
+    額外的差分隱私選項走 _apply_dp_option。
+    """
     if record.technique != "differential_privacy":
         return None
     raw = item.get("sensitivity")
@@ -793,7 +860,9 @@ async def _run_task_c(records: list[_FieldRecord], max_repairs: int) -> None:
                 else (variants[0] if variants else None)
             )
 
-            if not problems and record.technique == "differential_privacy":
+            if (
+                not problems and record.technique == "differential_privacy"
+            ):  # pragma: no cover
                 slider = record.slider
                 if slider and slider.default is not None and record.formulas:
                     note = check_noise_magnitude(
@@ -901,7 +970,7 @@ def _extra_warnings(record: _FieldRecord) -> list[str]:
     warnings: list[str] = []
     if record.technique == "suppress":
         warnings.append("建議直接刪除整欄；此欄位沒有可調參數，也沒有 Excel 公式。")
-    if record.technique == "differential_privacy" or record.dp_formulas:
+    if record.dp_formulas:
         warnings.append(
             "Excel 的 RAND() 每次重新計算都會產生新的雜訊，等同重複發布、累積消耗隱私預算，"
             "套用後請立刻「複製 → 選擇性貼上 → 值」把結果固定下來。"
@@ -912,9 +981,15 @@ def _extra_warnings(record: _FieldRecord) -> list[str]:
     if record.dp_formulas:
         warnings.append(
             "差分隱私選項的公式作用在「你自己算好的彙總值」上，不是原始資料的每一格。"
-            f"敏感度 Δf 目前是 {record.sensitivity}，是依 LLM 自行設定的假設推算的"
-            "（算式見 dp_sensitivity_basis）。筆數差一個數量級，Δf 就差一個數量級，"
-            "請對照你的真實資料確認 —— 這不是正式的隱私保證。"
+            f"敏感度 Δf 目前是 {record.sensitivity}，是用平台生成的"
+            f"{len(record.sample_before)} 筆範例假資料算出來的"
+            + (
+                "（算式見 dp_sensitivity_basis）。"
+                if record.dp_sensitivity_basis
+                else "。"
+            )
+            + "**你的真實資料筆數幾乎一定不同** —— 平均值查詢的 Δf 與筆數成反比，"
+            "筆數差一個數量級、Δf 就差一個數量級，套用前請依實際資料重算。"
         )
     if _looks_like_value_mapping(record):
         warnings.append(

@@ -221,10 +221,11 @@ class ProcessedField(BaseModel):
     )
     dp_sensitivity_basis: Optional[str] = Field(
         default=None,
-        description="敏感度 Δf 是怎麼算出來的：彙總方式、LLM 假設的數值上下界與筆數、"
-        "代入後的算式。**這是 LLM 依假設推算的，不是依使用者的真實資料** —— "
-        "請顯示在敏感度數字旁邊，讓使用者能檢查假設是否符合他的資料"
-        "（筆數差一個數量級，Δf 就差一個數量級）",
+        description="敏感度 Δf 是怎麼算出來的：彙總方式、**平台生成的範例假資料**的"
+        "最大值／最小值／筆數、代入後的算式。"
+        "**這是用範例假資料算的，不是使用者的真實資料** —— "
+        "請顯示在敏感度數字旁邊，讓使用者知道要依自己的資料重算"
+        "（平均值查詢的 Δf 與筆數成反比，筆數差一個數量級、Δf 就差一個數量級）",
     )
     dp_explanation: Optional[str] = Field(
         default=None,
