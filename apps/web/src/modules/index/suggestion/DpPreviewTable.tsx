@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import {
   Table,
   TableBody,
@@ -20,7 +21,7 @@ const DpPreviewTable = ({
       sample_before.length,
   );
 
-  const calcDpByFormula = (formula: string) => {
+  const dpResult = useMemo(() => {
     const hf = HyperFormula.buildFromArray([["before"], [totalAvg]], {
       licenseKey: "gpl-v3",
     });
@@ -36,7 +37,7 @@ const DpPreviewTable = ({
     }
 
     return typeof result === "number" ? Math.round(result) : result;
-  };
+  }, [formula, totalAvg]);
 
   return (
     <Table>
@@ -52,7 +53,7 @@ const DpPreviewTable = ({
 
       <TableBody>
         <TableRow>
-          {[totalAvg, calcDpByFormula(formula)].map((val, idx) => (
+          {[totalAvg, dpResult].map((val, idx) => (
             <TableCell key={idx} className="px-6">
               {val}
             </TableCell>

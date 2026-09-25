@@ -196,10 +196,16 @@ const FieldSuggestion = ({
                       moveRestButtonOnTop={false}
                       onValueChange={handleDpParamValueChange}
                     />
+
                     <Formula
                       formula={resolvedDpFormula}
                       errorMessage={field.dp_formula_error}
                     />
+
+                    <div className="text-muted-foreground -mt-1 text-xs">
+                      ＊ 請根據您的真實資料，調整「敏感度 (
+                      {field.dp_sensitivity})」
+                    </div>
 
                     <DpPreviewTable
                       formula={resolvedDpFormula}
