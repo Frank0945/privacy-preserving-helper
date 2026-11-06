@@ -18,12 +18,15 @@ export const typeList: {
   { label: "日期", value: "日期" },
 ];
 
-export const createDataField = (name: string = ""): FieldSpecInput => ({
+export const createDataField = (
+  name: string = "",
+  isKeyfield: boolean = false,
+): FieldSpecInput => ({
   id: nanoid(),
   name: name,
   data_type: "文字",
   format_hint: null,
-  is_key_field: false,
+  is_key_field: isKeyfield,
 });
 
 export const parseAnalyzeError = (

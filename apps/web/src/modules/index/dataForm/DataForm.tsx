@@ -40,16 +40,17 @@ export interface DataActionsValue {
 
 interface DataFormProps {
   updateFields: (fields: ProcessedField[]) => void;
+  isMock?: boolean;
 }
 
-const DataForm = ({ updateFields }: DataFormProps) => {
+const DataForm = ({ updateFields, isMock = false }: DataFormProps) => {
   const [items, setItems] = useState<FieldSpecInput[]>(() => [
     createDataField("姓名"),
     createDataField("身份證字號"),
     createDataField("出生年月日"),
-    createDataField("職業"),
-    createDataField("月消費總計"),
-    createDataField("年薪"),
+    createDataField("職業", true),
+    createDataField("月消費總計", true),
+    createDataField("年薪", true),
   ]);
 
   const [actions, setActions] = useState<DataActionsValue>({
@@ -85,7 +86,7 @@ const DataForm = ({ updateFields }: DataFormProps) => {
   };
 
   return (
-    <FieldSet disabled={isPending} inert={isPending}>
+    <FieldSet disabled={isPending} inert={isPending || isMock}>
       <Card>
         <CardHeader>
           <CardTitle>告訴我們您的資料長什麼樣子</CardTitle>
